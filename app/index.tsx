@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { Link } from 'expo-router';  // Import Link from expo-router
-import Ionicons from 'react-native-vector-icons/Ionicons'; // Import Ionicons
+import { Link } from 'expo-router'; 
+import Ionicons from 'react-native-vector-icons/Ionicons'; 
 
 const Index = () => {
   return (

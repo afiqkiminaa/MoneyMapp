@@ -1,12 +1,35 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity } from 'react-native';
-import { Link } from 'expo-router';  // Import Link from expo-router
+import { useAuth } from "@/contexts/authContext";
+import { Link, router } from "expo-router";
+import React, { useRef } from "react";
+import { Alert, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 const Register = () => {
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [role, setRole] = useState('student');
+  const emailRef = useRef("");
+  const passwordRef = useRef("");
+  const nameRef = useRef("");
+
+  const { register: registerUser } = useAuth();
+
+  const handleSubmit = async () => {
+    if (!emailRef.current || !passwordRef.current || !nameRef.current) {
+      Alert.alert("Sign up", "Please fill all the fields");
+      return;
+    }
+
+    const res = await registerUser(
+      emailRef.current,
+      passwordRef.current,
+      nameRef.current
+    );
+    console.log("register result:", res);
+
+    if (!res.success) {
+      Alert.alert("Sign up", res.msg);
+    } else {
+    Alert.alert("Sign up", "Account created successfully. Redirecting...");
+    router.replace("/login");
+  }
+  };
 
   return (
     <View className="flex-1 bg-light-100 justify-center px-6 py-12">
@@ -17,62 +40,79 @@ const Register = () => {
         Start tracking your expenses
       </Text>
 
-      {/* Full Name Label and Input */}
+      {/* Full Name */}
       <Text className="font-bold text-dark-100 mb-2">Full Name</Text>
       <TextInput
-        value={fullName}
-        onChangeText={setFullName}
+        onChangeText={(text) => (nameRef.current = text)}
         placeholder="Enter your full name"
         className="bg-white p-4 rounded-lg shadow-lg mb-4 text-dark-100"
       />
 
-      {/* Email Label and Input */}
+      {/* Email */}
       <Text className="font-bold text-dark-100 mb-2">Email</Text>
       <TextInput
-        value={email}
-        onChangeText={setEmail}
+        onChangeText={(text) => (emailRef.current = text)}
         placeholder="Enter your email"
         keyboardType="email-address"
+        autoCapitalize="none"
         className="bg-white p-4 rounded-lg shadow-lg mb-4 text-dark-100"
       />
 
-      {/* Password Label and Input */}
+      {/* Password */}
       <Text className="font-bold text-dark-100 mb-2">Password</Text>
       <TextInput
-        value={password}
-        onChangeText={setPassword}
+        onChangeText={(text) => (passwordRef.current = text)}
         placeholder="Create a password"
         secureTextEntry
         className="bg-white p-4 rounded-lg shadow-lg mb-4 text-dark-100"
       />
 
-      {/* Role Selection */}
+      {/* Role Selection
       <View className="flex-row justify-between mb-6">
         <TouchableOpacity
-          onPress={() => setRole('student')}
-          className={`py-2 px-4 rounded-lg border-2 border-primary ${role === 'student' ? 'bg-primary text-white' : 'text-primary'}`}
+          onPress={() => (roleRef.current = "student")}
+          className={`py-2 px-4 rounded-lg border-2 border-primary ${
+            roleRef.current === "student" ? "bg-primary" : ""
+          }`}
         >
-          <Text className="text-lg">Student</Text>
+          <Text
+            className={`text-lg ${
+              roleRef.current === "student" ? "text-white" : "text-primary"
+            }`}
+          >
+            Student
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={() => setRole('professional')}
-          className={`py-2 px-4 rounded-lg border-2 border-primary ${role === 'professional' ? 'bg-primary text-white' : 'text-primary'}`}
+          onPress={() => (roleRef.current = "professional")}
+          className={`py-2 px-4 rounded-lg border-2 border-primary ${
+            roleRef.current === "professional" ? "bg-primary" : ""
+          }`}
         >
-          <Text className="text-lg">Professional</Text>
+          <Text
+            className={`text-lg ${
+              roleRef.current === "professional" ? "text-white" : "text-primary"
+            }`}
+          >
+            Professional
+          </Text>
         </TouchableOpacity>
-      </View>
+      </View> */}
 
-      {/* Create Account Button */}
-      <TouchableOpacity className="bg-primary py-3 px-6 rounded-lg shadow-lg mb-6">
-        <Text className="text-white text-center text-lg font-semibold">Create Account</Text>
+      {/* Submit Button */}
+      <TouchableOpacity
+        onPress={handleSubmit}
+        className="bg-primary py-3 px-6 rounded-lg shadow-lg mb-6"
+      >
+        <Text className="text-white text-center text-lg font-semibold">
+          Create Account
+        </Text>
       </TouchableOpacity>
 
       {/* Sign In Link */}
       <View className="flex-row justify-center">
         <Text className="text-dark-100">Already have an account? </Text>
-        <Link
-          href="/login"  // Link to the Login page (path will be based on your project structure)
-        >
+        <Link href="/login">
           <Text className="text-primary font-semibold">Sign in</Text>
         </Link>
       </View>
