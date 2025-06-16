@@ -2,15 +2,17 @@ import { Stack } from "expo-router";
 import './globals.css';
 import { AuthProvider } from "@/contexts/authContext";
 import React from "react";
+import Toast from 'react-native-toast-message'; // ✅ Import Toast
 
 const StackLayout = () => {
-  return <Stack screenOptions={{ headerShown: false }}></Stack>;
+  return <Stack screenOptions={{ headerShown: false }} />;
 };
 
-// handle whole section
 export default function RootLayout() {
-  return (<AuthProvider>
-    <StackLayout/>
-  </AuthProvider>
+  return (
+    <AuthProvider>
+      <StackLayout />
+      <Toast /> 
+    </AuthProvider>
   );
 }
