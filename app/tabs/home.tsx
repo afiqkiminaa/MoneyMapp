@@ -1,14 +1,10 @@
-import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  ActivityIndicator,
-} from "react-native";
 import { firestore } from "@/config/firebase";
 import { useAuth } from "@/contexts/authContext";
-import { collection, getDocs } from "firebase/firestore";
+import { useFocusEffect } from "@react-navigation/native";
 import { format, parseISO } from "date-fns";
+import { collection, getDocs } from "firebase/firestore";
+import React, { useCallback, useState } from "react";
+import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 
 // Emoji icons for categories
 const categoryIcons: { [key: string]: string } = {
@@ -35,11 +31,6 @@ const Home = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-  // Auto-fetch when user or date changes
-  useEffect(() => {
-    if (user) fetchExpenses();
-  }, [selectedMonth, selectedYear, user]);
-
   // Dynamic greeting based on time
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -47,6 +38,15 @@ const Home = () => {
     if (hour < 18) return "Good Afternoon";
     return "Good Evening";
   };
+
+  // Auto-refresh when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      if (user) {
+        fetchExpenses();
+      }
+    }, [selectedMonth, selectedYear, user])
+  );
 
   const fetchExpenses = async () => {
     const uid = user?.uid;
