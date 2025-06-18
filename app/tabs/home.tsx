@@ -90,9 +90,9 @@ const Home = () => {
   };
 
   return (
-    <ScrollView className="flex-1 bg-white px-6 py-4">
+    <ScrollView className="flex-1 bg-white px-6 pt-8">
       {/* Dynamic Greeting */}
-      <Text className="text-4xl font-bold text-dark-100 mb-1 mt-9 text-center">
+      <Text className="text-4xl font-bold text-dark-100 mt-5 mb-1 text-center">
         {getGreeting()}, {user?.name || "User"}
       </Text>
       <Text className="text-base text-dark-200 mb-4 text-center">
