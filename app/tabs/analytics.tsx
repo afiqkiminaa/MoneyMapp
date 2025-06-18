@@ -1,18 +1,18 @@
-import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  Dimensions,
-  StyleProp,
-  ViewStyle,
-  TouchableOpacity,
-} from "react-native";
-import { BarChart, PieChart } from "react-native-chart-kit";
 import { firestore } from "@/config/firebase";
 import { useAuth } from "@/contexts/authContext";
-import { collection, getDocs } from "firebase/firestore";
 import { parseISO } from "date-fns";
+import { collection, getDocs } from "firebase/firestore";
+import React, { useEffect, useState } from "react";
+import {
+  Dimensions,
+  ScrollView,
+  StyleProp,
+  Text,
+  TouchableOpacity,
+  View,
+  ViewStyle,
+} from "react-native";
+import { BarChart, PieChart } from "react-native-chart-kit";
 
 const screenWidth = Dimensions.get("window").width;
 
@@ -30,8 +30,18 @@ const categoryColors: { [key: string]: string } = {
 };
 
 const monthNames = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 const Analytics = () => {
@@ -89,7 +99,7 @@ const Analytics = () => {
   };
 
   return (
-    <ScrollView className="flex-1 bg-light-100 px-4 pt-10">
+    <ScrollView className="flex-1 bg-white px-4 pt-10">
       <Text className="text-4xl font-bold text-dark-100 mt-5 mb-1 text-center ">
         Spending Analytics
       </Text>
@@ -98,7 +108,11 @@ const Analytics = () => {
       </Text>
 
       {/* 📅 Month Selector */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        className="mb-4"
+      >
         {monthNames.map((month, index) => (
           <TouchableOpacity
             key={month}
@@ -137,7 +151,11 @@ const Analytics = () => {
           }`}
           onPress={() => setChartType("donut")}
         >
-          <Text className={`text-sm ${chartType === "donut" ? "text-white" : "text-dark-100"}`}>
+          <Text
+            className={`text-sm ${
+              chartType === "donut" ? "text-white" : "text-dark-100"
+            }`}
+          >
             Donut Chart
           </Text>
         </TouchableOpacity>
@@ -149,7 +167,11 @@ const Analytics = () => {
           }`}
           onPress={() => setChartType("bar")}
         >
-          <Text className={`text-sm ${chartType === "bar" ? "text-white" : "text-dark-100"}`}>
+          <Text
+            className={`text-sm ${
+              chartType === "bar" ? "text-white" : "text-dark-100"
+            }`}
+          >
             Bar Chart
           </Text>
         </TouchableOpacity>
@@ -207,7 +229,9 @@ const Analytics = () => {
               },
             }}
             style={{ marginVertical: 8, borderRadius: 16 }}
-            verticalLabelRotation={15} yAxisSuffix={""}          />
+            verticalLabelRotation={15}
+            yAxisSuffix={""}
+          />
         ))}
 
       {/* Category Breakdown */}

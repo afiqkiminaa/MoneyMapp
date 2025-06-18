@@ -14,11 +14,11 @@ const Profile = () => {
   };
 
   return (
-    <View className="flex-1 bg-light-100">
+    <View className="flex-1 bg-white">
       {/* Header */}
-    <View className="bg-primary-100 pt-14 px-4 items-center">
+    <View className="bg-white pt-14 px-4 items-center">
       <Text className="text-4xl font-extrabold text-dark-100">Profile</Text>
-      <Text className="text-base text-dark-200 mt-1">Manage your account</Text>
+      <Text className="text-base text-dark-200 mt-1 mb-2">Manage your account</Text>
     </View>
 
 
@@ -29,18 +29,18 @@ const Profile = () => {
       >
         {/* Profile Card */}
         <View className="px-5 mt-8">
-          <View className="bg-white rounded-xl py-5 px-4 shadow-md items-center">
-            <View className="w-20 h-20 bg-gray-200 rounded-full items-center justify-center mb-2">
+          <View className="bg-light-100 rounded-xl py-5 px-4 shadow-md items-center">
+            <View className="w-20 h-20 bg-white rounded-full items-center justify-center mb-2">
               <Ionicons name="person-outline" size={32} color="#888" />
             </View>
-            <Text className="text-base font-semibold text-dark-100">
+            <Text className="text-2xl font-semibold text-dark-100">
               {user?.name || "Your Name"}
             </Text>
             <Text className="text-sm text-dark-200 mb-2">
               {user?.email || "example@email.com"}
             </Text>
             <Text className="text-xs px-3 py-1 bg-purple-100 text-purple-700 rounded-full font-medium">
-              Professional
+              Student
             </Text>
           </View>
         </View>

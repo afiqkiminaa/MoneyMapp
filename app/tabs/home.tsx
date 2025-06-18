@@ -90,12 +90,12 @@ const Home = () => {
   };
 
   return (
-    <ScrollView className="flex-1 bg-light-100 px-6 py-4">
+    <ScrollView className="flex-1 bg-white px-6 py-4">
       {/* Dynamic Greeting */}
-      <Text className="text-4xl font-bold text-dark-100 mb-2 mt-9">
+      <Text className="text-4xl font-bold text-dark-100 mb-1 mt-9 text-center">
         {getGreeting()}, {user?.name || "User"}
       </Text>
-      <Text className="text-base text-dark-200 mb-4">
+      <Text className="text-base text-dark-200 mb-4 text-center">
         Let's manage your money
       </Text>
 
@@ -109,16 +109,20 @@ const Home = () => {
           <Text className="text-base font-medium">spent</Text>
         </Text>
 
-        <View className="flex-row justify-between mt-4">
-          <View>
-            <Text className="text-white text-sm opacity-80">Recurring</Text>
-            <Text className="text-white text-lg font-semibold">
+        <View className="flex-row justify-between mt-4 gap-x-3">
+          <View className="flex-1 bg-white/20 rounded-xl px-4 py-3">
+            <Text className="text-white text-sm opacity-90 mb-1">
+              Recurring
+            </Text>
+            <Text className="text-white text-xl font-bold">
               RM{recurringTotal.toFixed(2)}
             </Text>
           </View>
-          <View>
-            <Text className="text-white text-sm opacity-80">Daily Avg</Text>
-            <Text className="text-white text-lg font-semibold">
+          <View className="flex-1 bg-white/20 rounded-xl px-4 py-3">
+            <Text className="text-white text-sm opacity-90 mb-1">
+              Daily Avg
+            </Text>
+            <Text className="text-white text-xl font-bold">
               RM{(total / 30).toFixed(2)}
             </Text>
           </View>

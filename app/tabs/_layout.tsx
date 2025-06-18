@@ -1,4 +1,4 @@
-import { Tabs } from 'expo-router';
+import { Tabs } from 'expo-router/tabs';
 import { View, Text, Platform } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 
@@ -44,11 +44,16 @@ const _layout = () => {
                   justifyContent: 'center',
                   alignItems: 'center',
                   marginBottom: 30,
-                  shadowColor: '#000',
-                  shadowOpacity: 0.2,
-                  shadowRadius: 5,
-                  shadowOffset: { width: 0, height: 2 },
-                  elevation: 5,
+                  ...(Platform.OS === 'ios'
+                    ? {
+                        shadowColor: '#000',
+                        shadowOpacity: 0.2,
+                        shadowRadius: 5,
+                        shadowOffset: { width: 0, height: 2 },
+                      }
+                    : {
+                        elevation: 5,
+                      }),
                 }}
               >
                 <Feather name="plus" size={28} color="white" />
