@@ -1,19 +1,39 @@
-import React, { useEffect, useState } from "react";
-import {
-  Alert, Modal, Pressable, ScrollView, Text,
-  TextInput, TouchableOpacity, View
-} from "react-native";
 import { firestore } from "@/config/firebase";
 import { useAuth } from "@/contexts/authContext";
-import { collection, doc, getDocs, setDoc, deleteDoc } from "firebase/firestore";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { parseISO } from "date-fns";
-import { ProgressBar } from "react-native-paper";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  setDoc,
+} from "firebase/firestore";
+import React, { useEffect, useState } from "react";
+import {
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import DropDownPicker from "react-native-dropdown-picker";
-import { Ionicons, Feather } from "@expo/vector-icons";
+import { ProgressBar } from "react-native-paper";
 
 const categoryList = [
-  "Food", "Rent", "Utilities", "Transportation", "Entertainment",
-  "Shopping", "Health", "Education", "Travel", "Other"
+  "Food",
+  "Rent",
+  "Utilities",
+  "Transportation",
+  "Entertainment",
+  "Shopping",
+  "Health",
+  "Education",
+  "Travel",
+  "Other",
 ];
 
 const BudgetPage = () => {
@@ -107,7 +127,15 @@ const BudgetPage = () => {
     if (!uid || !newCategory || !newLimit) return;
 
     const category = editMode ? editingCategory : newCategory;
-    const ref = doc(firestore, "users", uid, "budgets", currentMonthKey, "categories", category);
+    const ref = doc(
+      firestore,
+      "users",
+      uid,
+      "budgets",
+      currentMonthKey,
+      "categories",
+      category
+    );
 
     try {
       await setDoc(ref, { limit: parseFloat(newLimit) });
@@ -195,7 +223,9 @@ const BudgetPage = () => {
               </Text>
             </View>
             <View className="flex-row space-x-3">
-              <TouchableOpacity onPress={() => handleEditBudget(b.category, b.limit)}>
+              <TouchableOpacity
+                onPress={() => handleEditBudget(b.category, b.limit)}
+              >
                 <Feather name="edit" size={18} color="#4b5563" />
               </TouchableOpacity>
               <TouchableOpacity onPress={() => handleDeleteBudget(b.category)}>
@@ -213,7 +243,9 @@ const BudgetPage = () => {
           <Text className="text-sm text-gray-500 mt-1">
             {b.used > b.limit
               ? "Over Budget! Limit exceeded."
-              : `${Math.round(b.percentage)}% used, RM${(b.limit - b.used).toFixed(2)} remaining`}
+              : `${Math.round(b.percentage)}% used, RM${(
+                  b.limit - b.used
+                ).toFixed(2)} remaining`}
           </Text>
         </View>
       ))}
@@ -256,7 +288,7 @@ const BudgetPage = () => {
                 {editMode ? "Edit Budget" : "Add New Budget"}
               </Text>
               <Pressable onPress={() => setShowModal(false)}>
-                <Ionicons name="close" size={24} />
+                <Ionicons name="close" size={28} />
               </Pressable>
             </View>
 
