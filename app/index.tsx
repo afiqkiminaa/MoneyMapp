@@ -9,11 +9,11 @@ const Index = () => {
       {/* Hero Section */}
       <View className="bg-primary text-white py-12 px-6 flex-1 justify-center">
         <View className="max-w-md mx-auto text-center">
-          <Text className="text-5xl text-white font-extrabold mb-4 text-center">MoneyMap</Text>
-          <Text className="text-lg text-white mb-6 opacity-90 text-center">
+          <Text className="text-5xl text-white font-extrabold mb-4 mt-10 text-center">MoneyMap</Text>
+          <Text className="text-xl text-white mb-6 opacity-90 text-center">
             Your smart financial companion for tracking expenses and achieving goals
           </Text>
-          <View className="space-y-6 mt-8">
+          <View className="space-y-6 mt-2">
             {/* Log In Button */}
             <Link
               href="/login"  // Link to the Login page (path will be based on your project structure)
@@ -34,7 +34,7 @@ const Index = () => {
       </View>
 
       {/* Features Section */}
-      <View className="bg-white py-16 px-6">
+      <View className="bg-white py-16 px-12">
         <View className="max-w-3xl mx-auto">
           <Text className="text-3xl font-bold text-center mb-7">Smart Expense Tracker & Financial Budgeting</Text>
 
@@ -43,7 +43,7 @@ const Index = () => {
               <View className="bg-primary/10 p-6 rounded-full">
                 <Ionicons name="stats-chart" size={28} color="#7A4DFF" />
               </View>
-              <View className="flex-1">
+              <View className="flex-1 mb-5">
                 <Text className="font-semibold text-xl mb-2">Track Expenses</Text>
                 <Text className="text-gray-700 text-sm">
                   Easily log and categorize your daily spending with intuitive tools
@@ -55,7 +55,7 @@ const Index = () => {
               <View className="bg-primary/10 p-6 rounded-full">
                 <Ionicons name="cash" size={28} color="#7A4DFF" />
               </View>
-              <View className="flex-1">
+              <View className="flex-1 mb-5">
                 <Text className="font-semibold text-xl mb-2">Budget Planning</Text>
                 <Text className="text-gray-700 text-sm">
                   Set monthly budgets and receive alerts when you're close to limits
