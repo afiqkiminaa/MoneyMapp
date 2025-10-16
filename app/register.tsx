@@ -32,8 +32,8 @@ const Register = () => {
   };
 
   return (
-    <View className="flex-1 bg-light-100 justify-center px-6 py-12">
-      <Text className="text-3xl font-extrabold text-dark-100 text-center mb-4">
+    <View className="flex-1 bg-light-100 px-6 py-12">
+      <Text className="text-3xl font-extrabold text-dark-100 text-center mt-10 mb-4">
         Create Your Account
       </Text>
       <Text className="text-lg text-dark-200 text-center mb-6 opacity-80">

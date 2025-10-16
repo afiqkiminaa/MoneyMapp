@@ -6,10 +6,10 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDocs,
+  onSnapshot,
   setDoc,
 } from "firebase/firestore";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Modal,
@@ -36,11 +36,13 @@ const categoryList = [
   "Other",
 ];
 
+type CategoryTotals = Record<string, number>;
+type BudgetLimit = { category: string; limit: number };
+
 const BudgetPage = () => {
   const { user } = useAuth();
-  const [budgetData, setBudgetData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
 
+  // UI state
   const [showModal, setShowModal] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editingCategory, setEditingCategory] = useState("");
@@ -52,81 +54,117 @@ const BudgetPage = () => {
     categoryList.map((c) => ({ label: c, value: c }))
   );
 
-  const currentMonthKey = `${new Date().getFullYear()}-${String(
-    new Date().getMonth() + 1
+  // Data state
+  const [loading, setLoading] = useState(true);
+  const [monthlyTotals, setMonthlyTotals] = useState<CategoryTotals>({});
+  const [budgetLimits, setBudgetLimits] = useState<BudgetLimit[]>([]);
+
+  const now = new Date();
+  const currentMonthKey = `${now.getFullYear()}-${String(
+    now.getMonth() + 1
   ).padStart(2, "0")}`;
 
-  const fetchBudgetData = async () => {
+  // Live listener: expenses (totals per category for current month)
+  useEffect(() => {
     const uid = user?.uid;
     if (!uid) return;
 
-    try {
-      setLoading(true);
+    const expensesRef = collection(firestore, "users", uid, "expenses");
+    setLoading(true);
 
-      const expensesRef = collection(firestore, "users", uid, "expenses");
-      const snapshot = await getDocs(expensesRef);
-      const totals: { [category: string]: number } = {};
-
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        const date = parseISO(data.date);
-        const now = new Date();
-        if (
-          date.getFullYear() === now.getFullYear() &&
-          date.getMonth() === now.getMonth()
-        ) {
-          totals[data.category] = (totals[data.category] || 0) + data.amount;
-        }
-      });
-
-      const budgetRef = collection(
-        firestore,
-        "users",
-        uid,
-        "budgets",
-        currentMonthKey,
-        "categories"
-      );
-      const budgetSnap = await getDocs(budgetRef);
-
-      const budgets: any[] = [];
-      budgetSnap.forEach((doc) => {
-        const cat = doc.id;
-        const limit = doc.data().limit;
-        const used = totals[cat] || 0;
-        const percentage = (used / limit) * 100;
-
-        // 3-color logic
-        let color = "#22c55e"; // green
-        if (percentage >= 100) color = "#ef4444"; // red
-        else if (percentage >= 50) color = "#facc15"; // yellow
-
-        budgets.push({
-          category: cat,
-          limit,
-          used,
-          percentage: Math.min(percentage, 100),
-          color,
+    const unsub = onSnapshot(
+      expensesRef,
+      (snapshot) => {
+        const totals: CategoryTotals = {};
+        snapshot.forEach((d) => {
+          const data = d.data();
+          if (!data?.date || typeof data.amount !== "number") return;
+          const dt = parseISO(data.date);
+          if (dt.getFullYear() === now.getFullYear() && dt.getMonth() === now.getMonth()) {
+            const cat = data.category || "Other";
+            totals[cat] = (totals[cat] || 0) + data.amount;
+          }
         });
-      });
+        setMonthlyTotals(totals);
+        setLoading(false);
+      },
+      (err) => {
+        console.error("onSnapshot(expenses) error:", err);
+        setLoading(false);
+      }
+    );
 
-      setBudgetData(budgets);
-    } catch (err) {
-      console.error("Error fetching budgets:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    return () => unsub();
+    
+  }, [user?.uid, currentMonthKey]);
 
+  // Live listener: budgets (limits for current month) 
   useEffect(() => {
-    fetchBudgetData();
-  }, []);
+    const uid = user?.uid;
+    if (!uid) return;
 
+    const budgetRef = collection(
+      firestore,
+      "users",
+      uid,
+      "budgets",
+      currentMonthKey,
+      "categories"
+    );
+
+    const unsub = onSnapshot(
+      budgetRef,
+      (snapshot) => {
+        const limits: BudgetLimit[] = [];
+        snapshot.forEach((d) => {
+          const category = d.id;
+          const limitVal = Number(d.data()?.limit);
+          if (!isNaN(limitVal)) {
+            limits.push({ category, limit: limitVal });
+          }
+        });
+        setBudgetLimits(limits);
+      },
+      (err) => {
+        console.error("onSnapshot(budgets) error:", err);
+      }
+    );
+
+    return () => unsub();
+  }, [user?.uid, currentMonthKey]);
+
+  //Merge: limits + monthly totals -> budgetData for UI
+  const budgetData = useMemo(() => {
+    return budgetLimits.map(({ category, limit }) => {
+      const used = monthlyTotals[category] || 0;
+      const percentage = limit > 0 ? (used / limit) * 100 : used > 0 ? 100 : 0;
+
+      let color = "#22c55e"; 
+      if (percentage >= 100) color = "#ef4444"; 
+      else if (percentage >= 50) color = "#facc15"; 
+
+      return {
+        category,
+        limit,
+        used,
+        percentage: Math.min(percentage, 100),
+        color,
+      };
+    });
+  }, [budgetLimits, monthlyTotals]);
+
+  // Actions
   const handleSaveBudget = async () => {
     const uid = user?.uid;
-    if (!uid || !newCategory || !newLimit) return;
+    if (!uid || !newLimit) return;
 
     const category = editMode ? editingCategory : newCategory;
+    const limitNum = parseFloat(newLimit);
+    if (isNaN(limitNum) || limitNum < 0) {
+      Alert.alert("Invalid amount", "Please enter a valid budget limit.");
+      return;
+    }
+
     const ref = doc(
       firestore,
       "users",
@@ -138,17 +176,15 @@ const BudgetPage = () => {
     );
 
     try {
-      await setDoc(ref, { limit: parseFloat(newLimit) });
-
-      setTimeout(() => {
-        setShowModal(false);
-        setNewLimit("");
-        setDropdownOpen(false);
-        setEditMode(false);
-        setEditingCategory("");
-        fetchBudgetData();
-      }, 100);
+      await setDoc(ref, { limit: limitNum });
+      // live listeners will update the UI automatically.
+      setShowModal(false);
+      setNewLimit("");
+      setDropdownOpen(false);
+      setEditMode(false);
+      setEditingCategory("");
     } catch (err) {
+      console.error("Failed to save budget:", err);
       Alert.alert("Error", "Failed to save budget.");
     }
   };
@@ -166,17 +202,22 @@ const BudgetPage = () => {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            const ref = doc(
-              firestore,
-              "users",
-              uid,
-              "budgets",
-              currentMonthKey,
-              "categories",
-              category
-            );
-            await deleteDoc(ref);
-            fetchBudgetData();
+            try {
+              const ref = doc(
+                firestore,
+                "users",
+                uid,
+                "budgets",
+                currentMonthKey,
+                "categories",
+                category
+              );
+              await deleteDoc(ref);
+              // No fetch call — listener updates UI.
+            } catch (e) {
+              console.error("Delete budget error:", e);
+              Alert.alert("Error", "Failed to delete budget.");
+            }
           },
         },
       ]
@@ -201,7 +242,7 @@ const BudgetPage = () => {
           return `• ${b.category}: Spending is low. You might reduce the budget.`;
         return null;
       })
-      .filter(Boolean);
+      .filter(Boolean) as string[];
   };
 
   return (
@@ -213,42 +254,50 @@ const BudgetPage = () => {
         Setup your budget limits
       </Text>
 
-      {budgetData.map((b, idx) => (
-        <View key={idx} className="mb-5">
-          <View className="flex-row justify-between items-center mb-1">
-            <View>
-              <Text className="font-medium text-dark-100">{b.category}</Text>
-              <Text className="text-gray-500 text-sm">
-                RM{b.used.toFixed(2)} / RM{b.limit.toFixed(2)}
-              </Text>
+      {loading && budgetLimits.length === 0 ? (
+        <Text className="text-gray-500 text-center mt-4">Loading…</Text>
+      ) : budgetData.length === 0 ? (
+        <Text className="text-gray-500 text-center mt-4">
+          No budgets set for this month.
+        </Text>
+      ) : (
+        budgetData.map((b, idx) => (
+          <View key={idx} className="mb-5">
+            <View className="flex-row justify-between items-center mb-1">
+              <View>
+                <Text className="font-medium text-dark-100">{b.category}</Text>
+                <Text className="text-gray-500 text-sm">
+                  RM{b.used.toFixed(2)} / RM{b.limit.toFixed(2)}
+                </Text>
+              </View>
+              <View className="flex-row space-x-3">
+                <TouchableOpacity
+                  onPress={() => handleEditBudget(b.category, b.limit)}
+                >
+                  <Feather name="edit" size={18} color="#4b5563" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleDeleteBudget(b.category)}>
+                  <Feather name="trash-2" size={18} color="#dc2626" />
+                </TouchableOpacity>
+              </View>
             </View>
-            <View className="flex-row space-x-3">
-              <TouchableOpacity
-                onPress={() => handleEditBudget(b.category, b.limit)}
-              >
-                <Feather name="edit" size={18} color="#4b5563" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleDeleteBudget(b.category)}>
-                <Feather name="trash-2" size={18} color="#dc2626" />
-              </TouchableOpacity>
-            </View>
+
+            <ProgressBar
+              progress={b.percentage / 100}
+              color={b.color}
+              style={{ height: 8, borderRadius: 10 }}
+            />
+
+            <Text className="text-sm text-gray-500 mt-1">
+              {b.used > b.limit
+                ? "Over Budget! Limit exceeded."
+                : `${Math.round(b.percentage)}% used, RM${(
+                    b.limit - b.used
+                  ).toFixed(2)} remaining`}
+            </Text>
           </View>
-
-          <ProgressBar
-            progress={b.percentage / 100}
-            color={b.color}
-            style={{ height: 8, borderRadius: 10 }}
-          />
-
-          <Text className="text-sm text-gray-500 mt-1">
-            {b.used > b.limit
-              ? "Over Budget! Limit exceeded."
-              : `${Math.round(b.percentage)}% used, RM${(
-                  b.limit - b.used
-                ).toFixed(2)} remaining`}
-          </Text>
-        </View>
-      ))}
+        ))
+      )}
 
       <View className="bg-blue-50 mt-8 p-4 rounded-xl border border-blue-100">
         <Text className="text-base font-bold mb-2 text-blue-700">
@@ -292,7 +341,6 @@ const BudgetPage = () => {
               </Pressable>
             </View>
 
-            {/* Category Dropdown */}
             {!editMode && (
               <>
                 <Text className="mb-1 font-medium">Category</Text>
@@ -304,16 +352,12 @@ const BudgetPage = () => {
                   setValue={setNewCategory}
                   setItems={setDropdownItems}
                   zIndex={1000}
-                  style={{
-                    borderColor: "#ccc",
-                    marginBottom: 20,
-                  }}
+                  style={{ borderColor: "#ccc", marginBottom: 20 }}
                   dropDownContainerStyle={{ zIndex: 1000 }}
                 />
               </>
             )}
 
-            {/* Limit Input */}
             <Text className="mb-1 font-medium">Limit (Monthly)</Text>
             <TextInput
               value={newLimit}

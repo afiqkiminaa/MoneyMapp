@@ -16,7 +16,7 @@ const Index = () => {
           <View className="space-y-6 mt-2">
             {/* Log In Button */}
             <Link
-              href="/login"  // Link to the Login page (path will be based on your project structure)
+              href="/login"  // Link to the Login page 
               className="bg-white text-primary font-semibold py-3 px-6 rounded-lg shadow-lg hover:bg-gray-100 transition-colors flex items-center justify-center"
             >
               <Text className="text-primary text-center">Log In <Ionicons name="arrow-forward" size={16} className="ml-2" /></Text>

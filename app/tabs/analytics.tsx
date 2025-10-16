@@ -1,7 +1,7 @@
 import { firestore } from "@/config/firebase";
 import { useAuth } from "@/contexts/authContext";
 import { parseISO } from "date-fns";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, onSnapshot } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   Dimensions,
@@ -55,52 +55,56 @@ const Analytics = () => {
 
   useEffect(() => {
     if (user?.uid) {
-      fetchCategoryData();
+      const unsubscribe = fetchCategoryData();
+      return () => unsubscribe(); 
     }
   }, [user, selectedMonth]);
 
-  const fetchCategoryData = async () => {
+  const fetchCategoryData = () => {
     const uid = user?.uid;
-    if (!uid) return;
+    if (!uid) return () => {};
 
     const ref = collection(firestore, "users", uid, "expenses");
-    const snapshot = await getDocs(ref);
 
-    const categoryTotals: { [key: string]: number } = {};
-    let total = 0;
+    const unsubscribe = onSnapshot(ref, (snapshot) => {
+      const categoryTotals: { [key: string]: number } = {};
+      let total = 0;
 
-    snapshot.forEach((doc) => {
-      const data = doc.data();
-      const date = parseISO(data.date);
-      if (
-        date.getMonth() === selectedMonth &&
-        date.getFullYear() === currentYear
-      ) {
-        const amount = data.amount;
-        const category = data.category || "Other";
-        categoryTotals[category] = (categoryTotals[category] || 0) + amount;
-        total += amount;
-      }
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        const date = parseISO(data.date);
+        if (
+          date.getMonth() === selectedMonth &&
+          date.getFullYear() === currentYear
+        ) {
+          const amount = data.amount;
+          const category = data.category || "Other";
+          categoryTotals[category] = (categoryTotals[category] || 0) + amount;
+          total += amount;
+        }
+      });
+
+      setTotalSpent(total);
+
+      const chartData = Object.entries(categoryTotals)
+        .sort((a, b) => b[1] - a[1])
+        .map(([category, value]) => ({
+          name: category, // only category name, no value
+          amount: value,
+          color: categoryColors[category] || "#ccc",
+          legendFontColor: "#333",
+          legendFontSize: 13,
+        }));
+
+      setCategoryData(chartData);
     });
 
-    setTotalSpent(total);
-
-    const chartData = Object.entries(categoryTotals)
-      .sort((a, b) => b[1] - a[1])
-      .map(([category, value]) => ({
-        name: category,
-        amount: value,
-        color: categoryColors[category] || "#ccc",
-        legendFontColor: "#333",
-        legendFontSize: 13,
-      }));
-
-    setCategoryData(chartData);
+    return unsubscribe;
   };
 
   return (
     <ScrollView className="flex-1 bg-white px-6 pt-8">
-      <Text className="text-4xl font-bold text-dark-100 mt-5 mb-1 text-center ">
+      <Text className="text-4xl font-bold text-dark-100 mt-5 mb-1 text-center">
         Spending Analytics
       </Text>
       <Text className="text-base text-dark-200 mb-4 text-center">
@@ -182,8 +186,8 @@ const Analytics = () => {
         (chartType === "donut" ? (
           <PieChart
             data={categoryData.map((item) => ({
-              name: item.name,
-              population: item.amount,
+              name: item.name, // ✅ Only category name, no value
+              population: item.amount, // used internally, won't show
               color: item.color,
               legendFontColor: item.legendFontColor,
               legendFontSize: item.legendFontSize,
@@ -200,18 +204,21 @@ const Analytics = () => {
             backgroundColor="transparent"
             center={[10, 0]}
             paddingLeft="16"
-            absolute
+            absolute={false} // ✅ disables slice labels
           />
         ) : (
           <BarChart
             data={{
-              labels: categoryData.map((item) => item.name),
+              labels: categoryData.map((item) =>
+                item.name.length > 8 ? item.name.slice(0, 6) + "…" : item.name
+              ),
               datasets: [{ data: categoryData.map((item) => item.amount) }],
             }}
             width={screenWidth - 30}
             height={260}
             fromZero
-            yAxisLabel="RM "
+            yAxisLabel=""
+            yAxisSuffix="" // ✅ ADD THIS LINE to fix the error
             chartConfig={{
               backgroundGradientFrom: "#fff",
               backgroundGradientTo: "#fff",
@@ -229,8 +236,8 @@ const Analytics = () => {
               },
             }}
             style={{ marginVertical: 8, borderRadius: 16 }}
-            verticalLabelRotation={15}
-            yAxisSuffix={""}
+            verticalLabelRotation={0}
+            showValuesOnTopOfBars={false}
           />
         ))}
 
