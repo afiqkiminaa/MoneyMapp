@@ -52,19 +52,23 @@ const Profile = () => {
             <Text className="text-dark-100 font-semibold mb-2">Account</Text>
 
             <TouchableOpacity
-              onPress={() => router.push("/tabs/home")} // Edit user page
+              onPress={() => router.push("/profiles/personal-info")} // Edit user page
               className="flex-row items-center justify-between py-3 border-b border-gray-200"
             >
               <Text className="text-dark-200">Personal Information</Text>
               <Ionicons name="chevron-forward" size={18} color="#999" />
             </TouchableOpacity>
 
-            <TouchableOpacity className="flex-row items-center justify-between py-3 border-b border-gray-200">
+            <TouchableOpacity 
+              onPress={() => router.push("/profiles/notifications")}
+              className="flex-row items-center justify-between py-3 border-b border-gray-200">
               <Text className="text-dark-200">Notifications</Text>
               <Ionicons name="chevron-forward" size={18} color="#999" />
             </TouchableOpacity>
 
-            <TouchableOpacity className="flex-row items-center justify-between py-3 border-b border-gray-200">
+            <TouchableOpacity 
+              onPress={() => router.push("/profiles/security")}
+              className="flex-row items-center justify-between py-3 border-b border-gray-200">
               <Text className="text-dark-200">Security</Text>
               <Ionicons name="chevron-forward" size={18} color="#999" />
             </TouchableOpacity>
@@ -75,7 +79,9 @@ const Profile = () => {
             <Text className="text-dark-100 font-semibold mb-2 mt-4">
               Help & Support
             </Text>
-            <TouchableOpacity className="flex-row items-center justify-between py-3 border-b border-gray-200">
+            <TouchableOpacity 
+              onPress={() => router.push("/profiles/help-center")}
+              className="flex-row items-center justify-between py-3 border-b border-gray-200">
               <Text className="text-dark-200">Help Center</Text>
               <Ionicons name="chevron-forward" size={18} color="#999" />
             </TouchableOpacity>
