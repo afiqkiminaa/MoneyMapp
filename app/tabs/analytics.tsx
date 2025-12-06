@@ -186,8 +186,8 @@ const Analytics = () => {
         (chartType === "donut" ? (
           <PieChart
             data={categoryData.map((item) => ({
-              name: item.name, // ✅ Only category name, no value
-              population: item.amount, // used internally, won't show
+              name: item.name, 
+              population: item.amount, 
               color: item.color,
               legendFontColor: item.legendFontColor,
               legendFontSize: item.legendFontSize,
@@ -204,7 +204,7 @@ const Analytics = () => {
             backgroundColor="transparent"
             center={[10, 0]}
             paddingLeft="16"
-            absolute={false} // ✅ disables slice labels
+            absolute={false}
           />
         ) : (
           <BarChart
@@ -218,7 +218,7 @@ const Analytics = () => {
             height={260}
             fromZero
             yAxisLabel=""
-            yAxisSuffix="" // ✅ ADD THIS LINE to fix the error
+            yAxisSuffix="" 
             chartConfig={{
               backgroundGradientFrom: "#fff",
               backgroundGradientTo: "#fff",
