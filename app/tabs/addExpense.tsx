@@ -57,8 +57,7 @@ const AddExpense = () => {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         base64: true,
-        // --- MODIFIED: Increased quality to max (1.0) ---
-        quality: 1.0, 
+        quality: 0.7,
       });
 
       if (result.canceled) return;
@@ -270,7 +269,7 @@ const AddExpense = () => {
       <View className="flex-row border border-gray-300 rounded-xl px-4 py-2 mb-4">
         <TextInput
           className="flex-1 text-black"
-          placeholder="Add details about the expense"
+          placeholder="Add details of spending..."
           placeholderTextColor="#999"
           multiline
           numberOfLines={3}
