@@ -1,24 +1,24 @@
 import { firestore } from "@/config/firebase";
 import { useAuth } from "@/contexts/authContext";
-import { Feather, Ionicons, AntDesign } from "@expo/vector-icons";
+import { AntDesign, Feather, Ionicons } from "@expo/vector-icons";
 import {
   addMonths,
   format,
+  isSameMonth,
   parseISO,
   startOfMonth,
-  isSameMonth,
 } from "date-fns";
 import {
+  addDoc,
   collection,
   deleteDoc,
   doc,
-  onSnapshot,
-  setDoc,
-  addDoc,
-  serverTimestamp,
-  query,
-  orderBy,
   getDoc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
 } from "firebase/firestore";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -70,7 +70,9 @@ const BudgetPage = () => {
   );
 
   // Month selection
-  const [selectedDate, setSelectedDate] = useState<Date>(startOfMonth(new Date()));
+  const [selectedDate, setSelectedDate] = useState<Date>(
+    startOfMonth(new Date())
+  );
   const monthLabel = format(selectedDate, "MMMM yyyy");
   const monthKey = `${selectedDate.getFullYear()}-${String(
     selectedDate.getMonth() + 1
@@ -96,10 +98,20 @@ const BudgetPage = () => {
           if (isNaN(amt)) return;
           let dt: Date | null = null;
           if (typeof data?.date === "string") {
-            try { dt = parseISO(data.date); } catch { dt = null; }
+            try {
+              dt = parseISO(data.date);
+            } catch {
+              dt = null;
+            }
           } else if (data?.date?.toDate) dt = data.date.toDate();
           else if (data?.date instanceof Date) dt = data.date;
-          else if (data?.date) { try { dt = new Date(data.date); } catch { dt = null; } }
+          else if (data?.date) {
+            try {
+              dt = new Date(data.date);
+            } catch {
+              dt = null;
+            }
+          }
           if (!dt) return;
           if (isSameMonth(dt, selectedDate)) {
             const cat = data.category || "Other";
@@ -134,7 +146,8 @@ const BudgetPage = () => {
         const limits: BudgetLimit[] = [];
         snapshot.forEach((d) => {
           const limitVal = Number(d.data()?.limit);
-          if (!isNaN(limitVal)) limits.push({ category: d.id, limit: limitVal });
+          if (!isNaN(limitVal))
+            limits.push({ category: d.id, limit: limitVal });
         });
         setBudgetLimits(limits);
       },
@@ -150,7 +163,13 @@ const BudgetPage = () => {
       let color = "#22c55e";
       if (percentage >= 100) color = "#ef4444";
       else if (percentage >= 50) color = "#facc15";
-      return { category, limit, used, percentage: Math.min(percentage, 100), color };
+      return {
+        category,
+        limit,
+        used,
+        percentage: Math.min(percentage, 100),
+        color,
+      };
     });
   }, [budgetLimits, monthlyTotals]);
 
@@ -165,7 +184,15 @@ const BudgetPage = () => {
     }
     try {
       await setDoc(
-        doc(firestore, "users", uid, "budgets", monthKey, "categories", category),
+        doc(
+          firestore,
+          "users",
+          uid,
+          "budgets",
+          monthKey,
+          "categories",
+          category
+        ),
         { limit: limitNum }
       );
       setShowModal(false);
@@ -190,7 +217,15 @@ const BudgetPage = () => {
         onPress: async () => {
           try {
             await deleteDoc(
-              doc(firestore, "users", uid, "budgets", monthKey, "categories", category)
+              doc(
+                firestore,
+                "users",
+                uid,
+                "budgets",
+                monthKey,
+                "categories",
+                category
+              )
             );
           } catch (e) {
             console.error("Delete budget error:", e);
@@ -228,12 +263,16 @@ const BudgetPage = () => {
   const [goalTarget, setGoalTarget] = useState("");
   const [recordOpen, setRecordOpen] = useState(false);
   const [recordGoalId, setRecordGoalId] = useState<string | null>(null);
-  const [recordItems, setRecordItems] = useState<{ label: string; value: string }[]>(
-    []
-  );
+  const [recordItems, setRecordItems] = useState<
+    { label: string; value: string }[]
+  >([]);
   const [recordAmount, setRecordAmount] = useState("");
-  const [underBudgetStreakMonths, setUnderBudgetStreakMonths] = useState<number | null>(null);
-  const [weeklyStreakWeeks, setWeeklyStreakWeeks] = useState<number | null>(null);
+  const [underBudgetStreakMonths, setUnderBudgetStreakMonths] = useState<
+    number | null
+  >(null);
+  const [weeklyStreakWeeks, setWeeklyStreakWeeks] = useState<number | null>(
+    null
+  );
 
   useEffect(() => {
     const uid = user?.uid;
@@ -271,7 +310,9 @@ const BudgetPage = () => {
 
     (async () => {
       try {
-        const s = await getDoc(doc(firestore, "users", uid, "stats", "summary"));
+        const s = await getDoc(
+          doc(firestore, "users", uid, "stats", "summary")
+        );
         if (s.exists()) {
           const d: any = s.data();
           if (typeof d?.underBudgetStreakMonths === "number")
@@ -293,7 +334,10 @@ const BudgetPage = () => {
     if (!uid) return;
     const t = parseFloat(goalTarget);
     if (!goalName.trim() || isNaN(t) || t <= 0) {
-      Alert.alert("Invalid input", "Please provide a goal name and a positive target.");
+      Alert.alert(
+        "Invalid input",
+        "Please provide a goal name and a positive target."
+      );
       return;
     }
     try {
@@ -333,22 +377,38 @@ const BudgetPage = () => {
     <ScrollView className="flex-1 bg-white px-6 pt-8" nestedScrollEnabled>
       {/* Header + Tabs */}
       <View className="mt-3 mb-5">
-       <Text className="text-4xl font-bold text-dark-100 mt-5 mb-1 text-center">Budgets</Text>
-       <Text className="text-base text-dark-200 text-center">Setup your budgets and savings</Text>
+        <Text className="text-4xl font-bold text-dark-100 mt-5 mb-1 text-center">
+          Budgets
+        </Text>
+        <Text className="text-base text-dark-200 text-center">
+          Setup your budgets and savings
+        </Text>
         <View className="flex-row gap-x-3 mt-4 self-center">
           <TouchableOpacity
             onPress={() => setActiveTab("budget")}
-            className={`px-4 py-2 rounded-xl ${activeTab === "budget" ? "bg-violet-500" : "bg-violet-100"}`}
+            className={`px-4 py-2 rounded-xl ${
+              activeTab === "budget" ? "bg-violet-500" : "bg-violet-100"
+            }`}
           >
-            <Text className={`${activeTab === "budget" ? "text-white" : "text-violet-700"} font-semibold`}>
+            <Text
+              className={`${
+                activeTab === "budget" ? "text-white" : "text-violet-700"
+              } font-semibold`}
+            >
               📊 Budget Overview
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setActiveTab("savings")}
-            className={`px-4 py-2 rounded-xl ${activeTab === "savings" ? "bg-pink-500" : "bg-pink-100"}`}
+            className={`px-4 py-2 rounded-xl ${
+              activeTab === "savings" ? "bg-pink-500" : "bg-pink-100"
+            }`}
           >
-            <Text className={`${activeTab === "savings" ? "text-white" : "text-pink-700"} font-semibold`}>
+            <Text
+              className={`${
+                activeTab === "savings" ? "text-white" : "text-pink-700"
+              } font-semibold`}
+            >
               🏦 Savings Goals
             </Text>
           </TouchableOpacity>
@@ -359,58 +419,83 @@ const BudgetPage = () => {
       {activeTab === "budget" && (
         <>
           <View className="flex-row items-center justify-center mt-1 mb-6 gap-x-6">
-            <TouchableOpacity onPress={() => setSelectedDate((d) => addMonths(d, -1))}>
-              <AntDesign name="leftcircleo" size={24} color="#6b7280" />
+            <TouchableOpacity
+              onPress={() => setSelectedDate((d) => addMonths(d, -1))}
+            >
+              <AntDesign name="left-circle" size={24} color="#6b7280" />
             </TouchableOpacity>
             <Text className="text-lg font-semibold">{monthLabel}</Text>
-            <TouchableOpacity onPress={() => setSelectedDate((d) => addMonths(d, 1))}>
-              <AntDesign name="rightcircleo" size={24} color="#6b7280" />
+            <TouchableOpacity
+              onPress={() => setSelectedDate((d) => addMonths(d, 1))}
+            >
+              <AntDesign name="right-circle" size={24} color="#6b7280" />
             </TouchableOpacity>
           </View>
 
           {loading && budgetLimits.length === 0 ? (
             <Text className="text-gray-500 text-center mt-4">Loading…</Text>
           ) : budgetData.length === 0 ? (
-            <Text className="text-gray-500 text-center mt-4">No budgets set for this month.</Text>
+            <Text className="text-gray-500 text-center mt-4">
+              No budgets set for this month.
+            </Text>
           ) : (
             budgetData.map((b, idx) => (
               <View key={idx} className="mb-5">
                 <View className="flex-row justify-between items-center mb-1">
                   <View>
-                    <Text className="font-medium text-dark-100">{b.category}</Text>
+                    <Text className="font-medium text-dark-100">
+                      {b.category}
+                    </Text>
                     <Text className="text-gray-500 text-sm">
                       RM{b.used.toFixed(2)} / RM{b.limit.toFixed(2)}
                     </Text>
                   </View>
                   <View className="flex-row">
-                    <TouchableOpacity onPress={() => handleEditBudget(b.category, b.limit)} className="mr-4">
+                    <TouchableOpacity
+                      onPress={() => handleEditBudget(b.category, b.limit)}
+                      className="mr-4"
+                    >
                       <Feather name="edit" size={18} color="#4b5563" />
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleDeleteBudget(b.category)}>
+                    <TouchableOpacity
+                      onPress={() => handleDeleteBudget(b.category)}
+                    >
                       <Feather name="trash-2" size={18} color="#dc2626" />
                     </TouchableOpacity>
                   </View>
                 </View>
 
-                <ProgressBar progress={b.percentage / 100} color={b.color} style={{ height: 8, borderRadius: 10 }} />
+                <ProgressBar
+                  progress={b.percentage / 100}
+                  color={b.color}
+                  style={{ height: 8, borderRadius: 10 }}
+                />
 
                 <Text className="text-sm text-gray-500 mt-1">
                   {b.used > b.limit
                     ? "Over Budget! Limit exceeded."
-                    : `${Math.round(b.percentage)}% used, RM${(b.limit - b.used).toFixed(2)} remaining`}
+                    : `${Math.round(b.percentage)}% used, RM${(
+                        b.limit - b.used
+                      ).toFixed(2)} remaining`}
                 </Text>
               </View>
             ))
           )}
 
           <View className="bg-blue-50 mt-8 p-4 rounded-xl border border-blue-100">
-            <Text className="text-base font-bold mb-2 text-blue-700">Smart Budget Recommendations</Text>
+            <Text className="text-base font-bold mb-2 text-blue-700">
+              Smart Budget Recommendations
+            </Text>
             {getRecommendations().length > 0 ? (
               getRecommendations().map((rec, idx) => (
-                <Text key={idx} className="text-blue-700 mb-1">{rec}</Text>
+                <Text key={idx} className="text-blue-700 mb-1">
+                  {rec}
+                </Text>
               ))
             ) : (
-              <Text className="text-gray-500">No recommendations available.</Text>
+              <Text className="text-gray-500">
+                No recommendations available.
+              </Text>
             )}
           </View>
 
@@ -423,7 +508,9 @@ const BudgetPage = () => {
               setShowModal(true);
             }}
           >
-            <Text className="text-violet-600 font-bold text-lg">+ Add Budget Category</Text>
+            <Text className="text-violet-600 font-bold text-lg">
+              + Add Budget Category
+            </Text>
           </TouchableOpacity>
 
           {/* Budget Modal */}
@@ -443,7 +530,7 @@ const BudgetPage = () => {
                   <>
                     <Text className="mb-1 font-medium">Category</Text>
                     <DropDownPicker
-                      listMode="SCROLLVIEW"            
+                      listMode="SCROLLVIEW"
                       open={dropdownOpen}
                       value={newCategory}
                       items={dropdownItems}
@@ -466,7 +553,10 @@ const BudgetPage = () => {
                   className="border border-gray-300 rounded-md px-3 py-2 mb-4"
                 />
 
-                <TouchableOpacity className="bg-violet-500 rounded-md p-3" onPress={handleSaveBudget}>
+                <TouchableOpacity
+                  className="bg-violet-500 rounded-md p-3"
+                  onPress={handleSaveBudget}
+                >
                   <Text className="text-white font-bold text-center">
                     {editMode ? "Update Budget" : "Save Budget"}
                   </Text>
@@ -498,16 +588,21 @@ const BudgetPage = () => {
               className="border border-gray-300 rounded-md px-3 py-2 mb-4"
               placeholderTextColor="#9CA3AF"
             />
-            <TouchableOpacity onPress={handleAddGoal} className="bg-violet-500 rounded-xl p-3">
+            <TouchableOpacity
+              onPress={handleAddGoal}
+              className="bg-violet-500 rounded-xl p-3"
+            >
               <Text className="text-white text-center font-bold">Add Goal</Text>
             </TouchableOpacity>
           </View>
 
           {/* Record Saving */}
           <View className="bg-white rounded-2xl p-4 border border-gray-200 mb-6">
-            <Text className="text-base font-semibold mb-3">Record a Saving</Text>
+            <Text className="text-base font-semibold mb-3">
+              Record a Saving
+            </Text>
             <DropDownPicker
-              listMode="SCROLLVIEW"          
+              listMode="SCROLLVIEW"
               open={recordOpen}
               value={recordGoalId}
               items={recordItems}
@@ -527,8 +622,13 @@ const BudgetPage = () => {
               className="border border-gray-300 rounded-md px-3 py-2 mb-4"
               placeholderTextColor="#9CA3AF"
             />
-            <TouchableOpacity onPress={handleAddSaving} className="bg-violet-500 rounded-xl p-3">
-              <Text className="text-white text-center font-bold">Add to Goal</Text>
+            <TouchableOpacity
+              onPress={handleAddSaving}
+              className="bg-violet-500 rounded-xl p-3"
+            >
+              <Text className="text-white text-center font-bold">
+                Add to Goal
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -536,7 +636,9 @@ const BudgetPage = () => {
           <View className="bg-green-50 rounded-2xl p-4 border border-green-100 mb-6">
             <Text className="text-base font-semibold mb-3">Your Goals</Text>
             {goals.length === 0 ? (
-              <Text className="text-gray-500">No goals yet. Create one above.</Text>
+              <Text className="text-gray-500">
+                No goals yet. Create one above.
+              </Text>
             ) : (
               goals.map((g) => {
                 const saved = goalTotals[g.id] || 0;
@@ -558,7 +660,9 @@ const BudgetPage = () => {
 
           {/* Streaks */}
           <View className="bg-amber-50 rounded-2xl p-4 border border-amber-100 mb-10">
-            <Text className="text-base font-semibold mb-2">🏅 Budget Streaks & Rewards</Text>
+            <Text className="text-base font-semibold mb-2">
+              🏅 Budget Streaks & Rewards
+            </Text>
             <Text className="text-gray-700 mb-2">
               {typeof underBudgetStreakMonths === "number"
                 ? `You’ve stayed under budget for ${underBudgetStreakMonths} month${
@@ -566,7 +670,9 @@ const BudgetPage = () => {
                   } in a row!`
                 : "Keep tracking your spending—streaks will appear here once available."}
             </Text>
-            <Text className="text-gray-700 mb-1">Weekly Streak Reward Progress</Text>
+            <Text className="text-gray-700 mb-1">
+              Weekly Streak Reward Progress
+            </Text>
             <ProgressBar
               progress={
                 typeof weeklyStreakWeeks === "number"
@@ -579,7 +685,7 @@ const BudgetPage = () => {
             <Text className="text-gray-500">
               {typeof weeklyStreakWeeks === "number"
                 ? `${Math.max(12 - weeklyStreakWeeks, 0)} month${
-                    (12 - (weeklyStreakWeeks || 0)) === 1 ? "" : "s"
+                    12 - (weeklyStreakWeeks || 0) === 1 ? "" : "s"
                   } to unlock a badge 🥇`
                 : "Log weekly savings to start earning badges! 🥇"}
             </Text>
