@@ -1,4 +1,3 @@
-// app/profiles/security.tsx
 import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Modal } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,7 +15,7 @@ export default function SecurityScreen() {
   const handleChangePassword = () => {
     if (next1.length < 8) return alert("New password must be at least 8 characters.");
     if (next1 !== next2) return alert("New passwords do not match.");
-    // TODO: integrate with your auth backend (Firebase Auth updatePassword, etc.)
+    // TODO: integrate with auth backend (Firebase Auth updatePassword, etc.)
     alert("Password changed.");
     setCurrent(""); setNext1(""); setNext2("");
   };
