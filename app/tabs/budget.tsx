@@ -1153,7 +1153,7 @@ const BudgetPage = () => {
         <>
           <View className="bg-cyan-50 rounded-xl p-4 mb-4 border border-cyan-100">
             <Text className="text-cyan-800 font-bold text-lg mb-1">
-              🚀 Special Modules
+              🚀 Special Budgeting
             </Text>
             <Text className="text-cyan-700 text-sm">
               Track renovations, travel trips, shared bills, or large one-off
