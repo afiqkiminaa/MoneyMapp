@@ -6,6 +6,7 @@ import {
   Feather,
   Ionicons,
   MaterialCommunityIcons,
+  FontAwesome5, // Added for Fire Icon
 } from "@expo/vector-icons";
 import {
   addMonths,
@@ -14,6 +15,9 @@ import {
   parseISO,
   startOfMonth,
   subMonths,
+  isSameDay,
+  subDays,
+  differenceInCalendarDays,
 } from "date-fns";
 import {
   addDoc,
@@ -121,8 +125,8 @@ const BudgetPage = () => {
   ).padStart(2, "0")}`;
 
   const monthContext = useMemo(() => {
-  return createMonthContext(selectedDate);
-}, [selectedDate]);
+    return createMonthContext(selectedDate);
+  }, [selectedDate]);
 
   // --- Data State ---
   const [loading, setLoading] = useState(true);
@@ -142,13 +146,16 @@ const BudgetPage = () => {
     { label: string; value: string }[]
   >([]);
   const [recordAmount, setRecordAmount] = useState("");
+  
+  // Gamification State
   const [underBudgetStreakMonths, setUnderBudgetStreakMonths] = useState<
     number | null
   >(null);
-  const [weeklyStreakFire, setWeeklyStreakFire] = useState<number | null>(null);
+  const [weeklyStreakFire, setWeeklyStreakFire] = useState<number>(0); // Using this as DAILY streak count
   const [streakResetAt, setStreakResetAt] = useState<Date | null>(null);
   const [streakRestoresUsed, setStreakRestoresUsed] = useState<number>(0);
   const [isStreakBroken, setIsStreakBroken] = useState(false);
+  const [lastSavingDate, setLastSavingDate] = useState<Date | null>(null);
 
   // --- Helper Functions ---
   const getCurrentDayOfMonth = (): number => new Date().getDate();
@@ -258,7 +265,7 @@ const BudgetPage = () => {
     return () => unsub();
   }, [user?.uid]);
 
-  // --- Effects: Savings ---
+  // --- Effects: Savings & Stats ---
   useEffect(() => {
     const uid = user?.uid;
     if (!uid) return;
@@ -293,33 +300,39 @@ const BudgetPage = () => {
       setGoalTotals(totals);
     });
 
-    (async () => {
-      try {
-        const s = await getDoc(
-          doc(firestore, "users", uid, "stats", "summary")
-        );
-        if (s.exists()) {
-          const d: any = s.data();
-          if (typeof d?.underBudgetStreakMonths === "number")
-            setUnderBudgetStreakMonths(d.underBudgetStreakMonths);
-          if (typeof d?.weeklyStreakFire === "number")
-            setWeeklyStreakFire(d.weeklyStreakFire);
-          if (d?.streakResetAt) {
-            const resetDate =
-              d.streakResetAt.toDate?.() || new Date(d.streakResetAt);
-            setStreakResetAt(resetDate);
-          }
-          if (typeof d?.streakRestoresUsed === "number")
-            setStreakRestoresUsed(d.streakRestoresUsed);
-          if (typeof d?.isStreakBroken === "boolean")
-            setIsStreakBroken(d.isStreakBroken);
+    // Real-time listener for Gamification Stats
+    const statsRef = doc(firestore, "users", uid, "stats", "summary");
+    const unsubStats = onSnapshot(statsRef, (s) => {
+      if (s.exists()) {
+        const d: any = s.data();
+        if (typeof d?.underBudgetStreakMonths === "number")
+          setUnderBudgetStreakMonths(d.underBudgetStreakMonths);
+        
+        // use 'weeklyStreakFire' variable name to avoid refactor issues, 
+        // but semantically treat it as "DailyStreak"
+        if (typeof d?.weeklyStreakFire === "number")
+          setWeeklyStreakFire(d.weeklyStreakFire);
+        
+        if (d?.streakResetAt) {
+          const resetDate =
+            d.streakResetAt.toDate?.() || new Date(d.streakResetAt);
+          setStreakResetAt(resetDate);
         }
-      } catch {}
-    })();
+        if (typeof d?.streakRestoresUsed === "number")
+          setStreakRestoresUsed(d.streakRestoresUsed);
+        if (typeof d?.isStreakBroken === "boolean")
+          setIsStreakBroken(d.isStreakBroken);
+          
+        if (d?.lastSavingDate) {
+            setLastSavingDate(d.lastSavingDate.toDate());
+        }
+      }
+    });
 
     return () => {
       unsubGoals();
       unsubRecs();
+      unsubStats();
     };
   }, [user?.uid]);
 
@@ -348,9 +361,9 @@ const BudgetPage = () => {
       historicalData,
       monthlyTotals,
       budgetLimits,
-      selectedDate  // ← ADD THIS LINE (pass selectedDate)
+      selectedDate
     );
-  }, [budgetData, historicalData, monthlyTotals, budgetLimits, selectedDate]); // ← ADD selectedDate to dependencies
+  }, [budgetData, historicalData, monthlyTotals, budgetLimits, selectedDate]);
 
   // --- Handlers: Standard Budget ---
   const handleSaveBudget = async () => {
@@ -513,7 +526,7 @@ const BudgetPage = () => {
     }
   };
 
-  // --- Handlers: Savings ---
+  // --- Handlers: Savings & Streak Logic ---
   const handleAddGoal = async () => {
     const uid = user?.uid;
     if (!uid) return;
@@ -543,14 +556,57 @@ const BudgetPage = () => {
       Alert.alert("Invalid amount", "Enter a positive number.");
       return;
     }
+
     try {
+      // 1. Add Record
       await addDoc(collection(firestore, "users", uid, "savings_records"), {
         goalId: recordGoalId,
         amount: amt,
         createdAt: serverTimestamp(),
       });
+
+      // 2. Handle Gamification Streak Logic (Client-side simulation for demo)
+      const now = new Date();
+      let newStreak = weeklyStreakFire;
+      let broken = false;
+
+      // Determine streak logic based on last saving date
+      if (!lastSavingDate) {
+        // First ever saving
+        newStreak = 1;
+        Alert.alert("Streak Started! 🔥", "That's day 1! Keep it up.");
+      } else {
+        if (isSameDay(now, lastSavingDate)) {
+             // Already saved today - do not increase streak, but acknowledge
+             Alert.alert("Saved!", "You've already secured your streak for today! ✅");
+             // newStreak stays same
+        } else if (isSameDay(lastSavingDate, subDays(now, 1))) {
+            // Saved yesterday, so this is a consecutive day
+            newStreak = newStreak + 1;
+             Alert.alert("Streak Increased! 🔥", `You are on a ${newStreak} day streak!`);
+        } else {
+            // Missed more than 1 day - Streak Reset (or broken state)
+            // For this demo, let's reset to 1
+             newStreak = 1;
+             broken = true; 
+             Alert.alert("Streak Reset", "You missed a day! Streak starts over at 1.");
+        }
+      }
+
+      // 3. Update Stats Summary
+      await setDoc(
+        doc(firestore, "users", uid, "stats", "summary"), 
+        {
+           weeklyStreakFire: newStreak, // Using existing variable name for daily streak
+           lastSavingDate: serverTimestamp(),
+           isStreakBroken: broken ? true : false,
+        },
+        { merge: true }
+      );
+
       setRecordAmount("");
-    } catch {
+    } catch (e) {
+        console.error(e)
       Alert.alert("Error", "Failed to record saving.");
     }
   };
@@ -570,6 +626,8 @@ const BudgetPage = () => {
           text: "Restore",
           onPress: async () => {
             try {
+              // Restore logic: Just unbreak it, maybe give them back their old streak if you tracked it
+              // For simple demo, we just remove the 'broken' flag
               await setDoc(
                 doc(firestore, "users", uid, "stats", "summary"),
                 {
@@ -661,6 +719,12 @@ const BudgetPage = () => {
         return "#4b5563";
     }
   };
+
+  // Streak Level Calculation
+  const streakLevel = Math.floor(weeklyStreakFire / 10) + 1; // Level up every 10 days
+  const progressToNextLevel = (weeklyStreakFire % 10) / 10;
+  const daysToNextLevel = 10 - (weeklyStreakFire % 10);
+  const isSavedToday = lastSavingDate ? isSameDay(new Date(), lastSavingDate) : false;
 
   return (
     <ScrollView className="flex-1 bg-white px-6 pt-8" nestedScrollEnabled>
@@ -1121,7 +1185,7 @@ const BudgetPage = () => {
               className="bg-pink-500 rounded-xl p-3"
             >
               <Text className="text-white text-center font-bold">
-                Add to Goal
+                Add to Goal & Boost Streak 🔥
               </Text>
             </TouchableOpacity>
           </View>
@@ -1152,52 +1216,65 @@ const BudgetPage = () => {
             )}
           </View>
 
-          {/* Streaks */}
-          <View className="bg-amber-50 rounded-2xl p-4 border border-amber-100 mb-10">
-            <Text className="text-base font-semibold mb-2">
-              🏆 Savings Streaks
-            </Text>
-            <Text className="text-gray-700 mb-3">
-              {typeof underBudgetStreakMonths === "number"
-                ? `You've stayed under budget for ${underBudgetStreakMonths} month${
-                    underBudgetStreakMonths === 1 ? "" : "s"
-                  } in a row!`
-                : "Keep tracking your savings—streaks will appear here once available."}
-            </Text>
-            <Text className="text-gray-700 font-semibold text-base">
-              🔥 Weekly Savings Fire Streak
-            </Text>
-            <View className="flex-row items-center justify-between mb-2">
-              <Text
-                className={`text-3xl font-bold ${
-                  isStreakBroken ? "text-red-500" : "text-orange-500"
-                }`}
-              >
-                {typeof weeklyStreakFire === "number" ? weeklyStreakFire : 0}
-              </Text>
-              <Text className="text-gray-600 text-sm">+7 weekly</Text>
+          {/* IMPROVED STREAK SECTION */}
+          <View className="bg-orange-50 rounded-2xl p-5 border border-orange-200 mb-10 shadow-sm">
+             <View className="flex-row justify-between items-start mb-4">
+                <View>
+                    <Text className="text-xl font-bold text-orange-900">
+                    🔥 Daily Savings Streak
+                    </Text>
+                    <Text className="text-orange-800/70 text-sm mt-1">
+                    Save money daily to keep the fire burning!
+                    </Text>
+                </View>
+                <View className="items-center">
+                    {isSavedToday ? (
+                        <View className="bg-green-100 px-2 py-1 rounded-md border border-green-200">
+                            <Text className="text-green-700 font-bold text-xs">Saved Today ✅</Text>
+                        </View>
+                    ) : (
+                        <View className="bg-gray-100 px-2 py-1 rounded-md border border-gray-300">
+                            <Text className="text-gray-500 font-bold text-xs">Not Saved Yet</Text>
+                        </View>
+                    )}
+                </View>
+             </View>
+            
+            <View className="flex-row items-center justify-center gap-4 my-2">
+                 <FontAwesome5 name="fire" size={32} color={isStreakBroken ? "#9ca3af" : "#ef4444"} />
+                 <Text
+                    className={`text-5xl font-black ${
+                    isStreakBroken ? "text-gray-400" : "text-orange-600"
+                    }`}
+                >
+                    {weeklyStreakFire}
+                </Text>
+                <View>
+                     <Text className="text-lg font-bold text-orange-900">Days</Text>
+                     <Text className="text-xs text-orange-800">in a row</Text>
+                </View>
             </View>
-            <ProgressBar
-              progress={
-                typeof weeklyStreakFire === "number"
-                  ? Math.min((weeklyStreakFire % 70) / 70, 1)
-                  : 0
-              }
-              color={isStreakBroken ? "#ef4444" : "#ff6b35"}
-              style={{ height: 10, borderRadius: 10, marginVertical: 6 }}
-            />
-            <Text className="text-gray-500 text-xs mb-3">
-              {typeof weeklyStreakFire === "number"
-                ? `Level ${Math.floor(weeklyStreakFire / 70) + 1}: ${
-                    70 - (weeklyStreakFire % 70)
-                  } points to next level 🎯`
-                : "Record weekly savings to start your fire streak! 🔥"}
-            </Text>
+
+            {/* Level System */}
+            <View className="mt-4 bg-white/50 p-3 rounded-xl border border-orange-100">
+                <View className="flex-row justify-between mb-2">
+                    <Text className="text-orange-800 font-bold text-xs">Rank: Level {streakLevel}</Text>
+                    <Text className="text-orange-800 font-bold text-xs">{daysToNextLevel} days to Level {streakLevel + 1} 🎯</Text>
+                </View>
+                <ProgressBar
+                progress={progressToNextLevel}
+                color={isStreakBroken ? "#ef4444" : "#ff6b35"}
+                style={{ height: 12, borderRadius: 10 }}
+                />
+            </View>
 
             {isStreakBroken && (
-              <View className="bg-red-100 rounded-lg p-2 mb-3">
-                <Text className="text-red-700 text-xs font-semibold mb-1">
-                  ⚠️ Your streak is broken!
+              <View className="bg-red-100 rounded-lg p-3 mt-4 border border-red-200">
+                <Text className="text-red-700 text-sm font-bold text-center mb-1">
+                  ⚠️ Oh no! Your streak is broken!
+                </Text>
+                <Text className="text-red-600 text-xs text-center">
+                    You missed a day of saving.
                 </Text>
               </View>
             )}
@@ -1205,7 +1282,7 @@ const BudgetPage = () => {
             {isStreakBroken && streakRestoresUsed < 2 && (
               <TouchableOpacity
                 onPress={handleRestoreStreak}
-                className="bg-orange-500 rounded-lg py-2 px-3"
+                className="bg-orange-500 rounded-xl py-3 px-3 mt-3 shadow-sm"
               >
                 <Text className="text-white font-bold text-center text-sm">
                   🔥 Restore Streak ({2 - streakRestoresUsed} left)
