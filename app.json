@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "MoneyMap",
-    "slug": "MoneyMap",
+    "slug": "moneymap",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon1.png",
@@ -10,6 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.afiqkimina.moneymap",
       "infoPlist": {
         "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to use speech recognition for voice input."
       }
@@ -20,15 +21,12 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
+      "package": "com.afiqkimina.moneymap",
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.INTERNET",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.INTERNET",
         "android.permission.MODIFY_AUDIO_SETTINGS"
-      ],
-      "package": "com.anonymous.MoneyMap"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -47,6 +45,12 @@
         }
       ],
       [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.785772225234-pfuvafhh54s1id82sdgl1muoaoiun3fv"
+        }
+      ],
+      [
         "expo-av",
         {
           "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone for voice input."
@@ -56,6 +60,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "5078ca07-f32f-4b94-8012-7e749b73f04d"
+      }
     }
   }
 }

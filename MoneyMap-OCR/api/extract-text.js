@@ -4,7 +4,7 @@ import { URLSearchParams } from 'url';
 import sharp from 'sharp';
 import convert from 'heic-convert'; 
 
-// --- Helper Function: parseTextForAmountAndDate (NO CHANGE) ---
+// --- Helper Function: parseTextForAmountAndDate ---
 const parseTextForAmountAndDate = (text) => {
     let extractedAmount = "";
     let extractedDate = "";

@@ -47,7 +47,7 @@ const PersonalInfo = () => {
       const ref = doc(firestore, "users", user.uid, "profile", "main");
       const snap = await getDoc(ref);
       const baseEmail = user.email || "";
-      const baseName = (user as any)?.name || user?.name || "";
+      const baseName = user?.displayName || (user as any)?.name || "";
 
       if (snap.exists()) {
         const data = snap.data() as Partial<ProfileForm>;

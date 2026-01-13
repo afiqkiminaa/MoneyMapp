@@ -53,7 +53,6 @@ const AddExpense = () => {
 
   const handleOCR = async () => {
     try {
-      // Pick image
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         base64: true,
@@ -63,27 +62,22 @@ const AddExpense = () => {
       if (result.canceled) return;
 
       const base64Image = result.assets[0].base64;
-
       setLoadingOCR(true);
 
       const response = await fetch(OCR_API_URL, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: base64Image }),
       });
 
-      // Check if the response status is NOT OK (e.g., 4xx or 5xx)
       if (!response.ok) {
-        const rawText = await response.text();
         setLoadingOCR(false);
         Toast.show({
           type: "error",
-          text1: "OCR API Error",
-          text2: `Status ${response.status}: ${rawText.substring(0, 100)}... (Check server logs)`,
+          text1: "Receipt Scan Failed",
+          text2: "We couldn't analyze the receipt. Please try a clearer photo.",
         });
-        return; // Stop processing if response is not OK
+        return;
       }
       
       const data = await response.json();
@@ -92,8 +86,8 @@ const AddExpense = () => {
       if (data.error) {
         Toast.show({
           type: "error",
-          text1: "OCR Error",
-          text2: data.error,
+          text1: "Scan Error",
+          text2: "We couldn't find a valid amount in the image.",
         });
         return;
       }
@@ -105,29 +99,25 @@ const AddExpense = () => {
       
       // 2. Apply extracted Date
       if (data.date) {
-        // Attempt to parse the string date into a Date object
         const parsedDate = new Date(data.date);
-        
-        // Check if parsing resulted in a valid date (not 'Invalid Date')
         if (!isNaN(parsedDate.getTime())) {
           setDate(parsedDate);
-        } else {
-          console.log("Failed to parse date from OCR:", data.date);
         }
       }
 
       Toast.show({
         type: "success",
-        text1: "Receipt Scanned",
-        text2: "Amount and date extracted successfully!",
+        text1: "Scan Complete",
+        text2: "We filled in the details from your receipt!",
       });
+
     } catch (err) {
       console.log(err);
       setLoadingOCR(false);
       Toast.show({
         type: "error",
-        text1: "Failed to scan",
-        text2: "Please try again",
+        text1: "Connection Failed",
+        text2: "Please check your internet and try again.",
       });
     }
   };
@@ -137,7 +127,7 @@ const AddExpense = () => {
       Toast.show({
         type: "error",
         text1: "Invalid Amount",
-        text2: "Please enter a valid number (e.g., 12.50)",
+        text2: "Please enter a number (e.g., 12.50)",
       });
       return;
     }
@@ -145,8 +135,8 @@ const AddExpense = () => {
     if (!user?.uid) {
       Toast.show({
         type: "error",
-        text1: "Authentication Error",
-        text2: "User not logged in",
+        text1: "Not Logged In",
+        text2: "Your session has expired. Please log in again.",
       });
       return;
     }
@@ -169,7 +159,7 @@ const AddExpense = () => {
       Toast.show({
         type: "success",
         text1: "Expense Saved",
-        text2: "Your expense has been recorded successfully",
+        text2: "Your spending has been recorded.",
       });
 
       setAmount("");
@@ -181,8 +171,8 @@ const AddExpense = () => {
       console.error("Error saving expense: ", error);
       Toast.show({
         type: "error",
-        text1: "Error Saving Expense",
-        text2: "Please try again",
+        text1: "Save Failed",
+        text2: "We couldn't save your expense. Please try again.",
       });
     }
   };

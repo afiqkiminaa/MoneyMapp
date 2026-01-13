@@ -44,7 +44,7 @@ export default function HelpCenterScreen() {
   };
 
   const handleWhatsApp = () => {
-    Linking.openURL("https://wa.me/60123456789").catch(() => {
+    Linking.openURL("https://wa.me/60195214496").catch(() => {
       Alert.alert("Error", "Could not open WhatsApp. Make sure it's installed.");
     });
   };
@@ -129,7 +129,7 @@ export default function HelpCenterScreen() {
           </View>
           <Text className="text-sm text-violet-800 ml-7">
             Email: support@moneymap.app{"\n"}
-            WhatsApp: +60 123 456 789{"\n"}
+            WhatsApp: +6019 521 4496{"\n"}
             Response time: 24-48 hours
           </Text>
         </View>

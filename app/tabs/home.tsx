@@ -2,8 +2,8 @@ import { firestore } from "@/config/firebase";
 import { useAuth } from "@/contexts/authContext";
 import { useFocusEffect } from "@react-navigation/native";
 import { format, parseISO } from "date-fns";
-import { collection, getDocs } from "firebase/firestore";
-import React, { useCallback, useState } from "react";
+import { collection, getDocs, doc, getDoc } from "firebase/firestore"; // Added doc, getDoc
+import React, { useCallback, useState, useEffect } from "react"; // Added useEffect
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 
 // Emoji icons for categories
@@ -27,6 +27,7 @@ const Home = () => {
   const [total, setTotal] = useState(0);
   const [recurringTotal, setRecurringTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [userName, setUserName] = useState(""); // State for user name
 
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -39,7 +40,32 @@ const Home = () => {
     return "Good Evening";
   };
 
-  // Auto-refresh when screen is focused
+  // FIX: Fetch User Name from Firestore
+  useFocusEffect(
+    useCallback(() => {
+      const fetchUserName = async () => {
+        if (user?.uid) {
+          try {
+            const userDocRef = doc(firestore, "users", user.uid);
+            const userDocSnap = await getDoc(userDocRef);
+            if (userDocSnap.exists()) {
+              const data = userDocSnap.data();
+              setUserName(data.name || user.displayName || "User");
+            } else {
+              setUserName(user.displayName || "User");
+            }
+          } catch (error) {
+            console.log("Error fetching user name:", error);
+            setUserName(user.displayName || "User");
+          }
+        }
+      };
+
+      fetchUserName();
+    }, [user])
+  );
+
+  // Auto-refresh expenses when screen is focused
   useFocusEffect(
     useCallback(() => {
       if (user) {
@@ -93,7 +119,8 @@ const Home = () => {
     <ScrollView className="flex-1 bg-white px-6 pt-8">
       {/* Dynamic Greeting */}
       <Text className="text-4xl font-bold text-dark-100 mt-5 mb-1 text-center">
-        {getGreeting()}, {user?.name || "User"}
+        {/* FIX: Display fetched userName */}
+        {getGreeting()}, {userName || "User"} 
       </Text>
       <Text className="text-base text-dark-200 mb-4 text-center">
         Let's manage your money

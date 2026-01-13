@@ -1,6 +1,6 @@
 import { firestore } from "@/config/firebase";
 import { useAuth } from "@/contexts/authContext";
-import { generateAIRecommendations } from "@/utils/aiRecommendations";
+import { generateAIRecommendations, createMonthContext } from "@/utils/aiRecommendations";
 import {
   AntDesign,
   Feather,
@@ -119,6 +119,10 @@ const BudgetPage = () => {
   const monthKey = `${selectedDate.getFullYear()}-${String(
     selectedDate.getMonth() + 1
   ).padStart(2, "0")}`;
+
+  const monthContext = useMemo(() => {
+  return createMonthContext(selectedDate);
+}, [selectedDate]);
 
   // --- Data State ---
   const [loading, setLoading] = useState(true);
@@ -343,9 +347,10 @@ const BudgetPage = () => {
       budgetData,
       historicalData,
       monthlyTotals,
-      budgetLimits
+      budgetLimits,
+      selectedDate  // ← ADD THIS LINE (pass selectedDate)
     );
-  }, [budgetData, historicalData, monthlyTotals, budgetLimits]);
+  }, [budgetData, historicalData, monthlyTotals, budgetLimits, selectedDate]); // ← ADD selectedDate to dependencies
 
   // --- Handlers: Standard Budget ---
   const handleSaveBudget = async () => {
@@ -788,6 +793,18 @@ const BudgetPage = () => {
             ))
           )}
 
+          {!monthContext.isCurrentMonth && (
+            <View className="bg-amber-50 rounded-xl p-4 border-2 border-amber-200 mb-4">
+              <Text className="text-amber-800 font-bold text-base mb-1">
+                📅 Historical View
+              </Text>
+              <Text className="text-amber-700 text-sm">
+                Daily-based recommendations are only available for the current month.
+                Switch to the current month to see real-time insights.
+              </Text>
+            </View>
+          )}
+
           {/* AI-Powered Smart Recommendations */}
           <View className="bg-gradient-to-br from-blue-50 to-indigo-50 mt-8 p-4 rounded-xl border-2 border-indigo-200">
             <View className="flex-row items-center justify-between mb-3">
@@ -806,20 +823,18 @@ const BudgetPage = () => {
               </View>
             </View>
 
-            {/* Progress indicator */}
-            {isSameMonth(selectedDate, new Date()) && (
+            {monthContext.isCurrentMonth && (
               <View className="bg-white rounded-lg p-3 mb-3 border border-indigo-100">
                 <View className="flex-row justify-between items-center mb-2">
                   <Text className="text-xs font-semibold text-gray-700">
-                    Month Progress: {getCurrentDayOfMonth()}/
-                    {getTotalDaysInMonth()} days
+                    Month Progress: {monthContext.currentDayOfMonth}/{monthContext.totalDaysInMonth} days
                   </Text>
                   <Text className="text-xs font-bold text-indigo-600">
-                    {Math.round(monthProgress)}%
+                    {Math.round(monthContext.dayProgress)}%
                   </Text>
                 </View>
                 <ProgressBar
-                  progress={monthProgress / 100}
+                  progress={monthContext.dayProgress / 100}
                   color="#4f46e5"
                   style={{ height: 6, borderRadius: 10 }}
                 />
@@ -865,6 +880,30 @@ const BudgetPage = () => {
                                 {rec.priority.toUpperCase()}
                               </Text>
                             </View>
+                            {/* NEW: Confidence Badge */}
+                            {rec.confidence !== undefined && (
+                              <View
+                                className={`px-2 py-1 rounded-full ${
+                                  rec.confidence >= 0.8
+                                    ? "bg-green-200"
+                                    : rec.confidence >= 0.6
+                                    ? "bg-yellow-200"
+                                    : "bg-orange-200"
+                                }`}
+                              >
+                                <Text
+                                  className={`text-xs font-bold ${
+                                    rec.confidence >= 0.8
+                                      ? "text-green-700"
+                                      : rec.confidence >= 0.6
+                                      ? "text-yellow-700"
+                                      : "text-orange-700"
+                                  }`}
+                                >
+                                  {Math.round((rec.confidence || 0) * 100)}%
+                                </Text>
+                              </View>
+                            )}
                           </View>
 
                           <Text className="text-sm text-gray-800 font-medium mb-2">
@@ -902,6 +941,15 @@ const BudgetPage = () => {
                                 </View>
                               </View>
                             )}
+
+                          {/* NEW: Data Quality Indicator */}
+                          {rec.dataQuality && (
+                            <View className="bg-white/40 rounded-lg px-2 py-1 mb-2">
+                              <Text className="text-xs text-gray-600">
+                                Data Quality: <Text className="font-semibold">{rec.dataQuality}</Text>
+                              </Text>
+                            </View>
+                          )}
 
                           {isExpanded && (
                             <View className="mt-3 pt-3 border-t border-gray-300">
@@ -974,6 +1022,26 @@ const BudgetPage = () => {
                 </Text>
               </View>
             )}
+          </View>
+
+          <View className="bg-gray-50 rounded-lg p-3 border border-gray-200 mt-4 mb-3">
+            <Text className="text-gray-600 text-xs font-semibold mb-1">
+              📊 Recommendation Accuracy
+            </Text>
+            <View className="flex-row justify-between">
+              <Text className="text-gray-500 text-xs">
+                {monthContext.currentDayOfMonth} of {monthContext.totalDaysInMonth} days elapsed
+              </Text>
+              <Text className="text-gray-500 text-xs">
+                {monthContext.currentDayOfMonth >= 15
+                  ? "✅ Excellent Data"
+                  : monthContext.currentDayOfMonth >= 10
+                  ? "✅ Good Data"
+                  : monthContext.currentDayOfMonth >= 5
+                  ? "⚠️ Fair Data"
+                  : "❌ Early in Month"}
+              </Text>
+            </View>
           </View>
 
           {/* Add Budget Button */}
