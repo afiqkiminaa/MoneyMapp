@@ -6,7 +6,7 @@ import {
   Feather,
   Ionicons,
   MaterialCommunityIcons,
-  FontAwesome5, // Added for Fire Icon
+  FontAwesome5, 
 } from "@expo/vector-icons";
 import {
   addMonths,
@@ -17,14 +17,15 @@ import {
   subMonths,
   isSameDay,
   subDays,
-  differenceInCalendarDays,
+  differenceInDays,
+  isValid,
+  parse,
 } from "date-fns";
 import {
   addDoc,
   collection,
   deleteDoc,
   doc,
-  getDoc,
   onSnapshot,
   orderBy,
   query,
@@ -72,8 +73,11 @@ type SpecialBudget = {
   id: string;
   name: string;
   type: SpecialType;
-  limit: number;
-  spent: number;
+  limit: number; // Total Amount
+  spent: number; // Collected Amount (for shared) or Paid Amount (for bill)
+  debtors?: string[]; // List of unpaid people
+  totalParticipants?: number; // To calculate split correctly even after people pay
+  dueDate?: any; // For Bill Reminders
   createdAt?: any;
 };
 
@@ -107,13 +111,27 @@ const BudgetPage = () => {
     { label: "👥 Shared Expense", value: "shared" },
     { label: "🧾 Bill Reminder", value: "bill" },
   ]);
+  
+  // NEW: State for adding debtors during creation
+  const [tempDebtorName, setTempDebtorName] = useState("");
+  const [creationDebtorsList, setCreationDebtorsList] = useState<string[]>([]);
+  
+  // NEW: Bill Due Date State
+  const [billDateInput, setBillDateInput] = useState(""); // YYYY-MM-DD string
 
-  // --- NEW: Android-Compatible Update Modal State ---
+  // --- Android-Compatible Update Modal State (Special Budget - Amounts) ---
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [updateTargetId, setUpdateTargetId] = useState<string | null>(null);
   const [updateCurrentSpent, setUpdateCurrentSpent] = useState(0);
   const [isAddingToSpent, setIsAddingToSpent] = useState(true); // true = Add, false = Set
   const [updateAmountStr, setUpdateAmountStr] = useState("");
+
+  // --- NEW: Add Person Modal State (Special Budget - Existing) ---
+  const [showAddPersonModal, setShowAddPersonModal] = useState(false);
+  const [addPersonTargetId, setAddPersonTargetId] = useState<string | null>(null);
+  const [addPersonCurrentList, setAddPersonCurrentList] = useState<string[]>([]);
+  const [addPersonTotalParticipants, setAddPersonTotalParticipants] = useState(0);
+  const [newPersonName, setNewPersonName] = useState("");
 
   // --- Month selection ---
   const [selectedDate, setSelectedDate] = useState<Date>(
@@ -146,12 +164,18 @@ const BudgetPage = () => {
     { label: string; value: string }[]
   >([]);
   const [recordAmount, setRecordAmount] = useState("");
+
+  // --- Savings Goal Edit State ---
+  const [showGoalModal, setShowGoalModal] = useState(false);
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [editGoalNameStr, setEditGoalNameStr] = useState("");
+  const [editGoalTargetStr, setEditGoalTargetStr] = useState("");
   
   // Gamification State
   const [underBudgetStreakMonths, setUnderBudgetStreakMonths] = useState<
     number | null
   >(null);
-  const [weeklyStreakFire, setWeeklyStreakFire] = useState<number>(0); // Using this as DAILY streak count
+  const [weeklyStreakFire, setWeeklyStreakFire] = useState<number>(0); 
   const [streakResetAt, setStreakResetAt] = useState<Date | null>(null);
   const [streakRestoresUsed, setStreakRestoresUsed] = useState<number>(0);
   const [isStreakBroken, setIsStreakBroken] = useState(false);
@@ -163,7 +187,6 @@ const BudgetPage = () => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   };
-  const monthProgress = (getCurrentDayOfMonth() / getTotalDaysInMonth()) * 100;
 
   // --- Effects: Standard Budget ---
   useEffect(() => {
@@ -257,6 +280,9 @@ const BudgetPage = () => {
           type: data.type || "home",
           limit: Number(data.limit) || 0,
           spent: Number(data.spent) || 0,
+          debtors: data.debtors || [], 
+          totalParticipants: data.totalParticipants || (data.debtors ? data.debtors.length : 1), 
+          dueDate: data.dueDate ? data.dueDate.toDate() : null, 
           createdAt: data.createdAt,
         });
       });
@@ -300,29 +326,22 @@ const BudgetPage = () => {
       setGoalTotals(totals);
     });
 
-    // Real-time listener for Gamification Stats
     const statsRef = doc(firestore, "users", uid, "stats", "summary");
     const unsubStats = onSnapshot(statsRef, (s) => {
       if (s.exists()) {
         const d: any = s.data();
         if (typeof d?.underBudgetStreakMonths === "number")
           setUnderBudgetStreakMonths(d.underBudgetStreakMonths);
-        
-        // use 'weeklyStreakFire' variable name to avoid refactor issues, 
-        // but semantically treat it as "DailyStreak"
         if (typeof d?.weeklyStreakFire === "number")
           setWeeklyStreakFire(d.weeklyStreakFire);
-        
         if (d?.streakResetAt) {
-          const resetDate =
-            d.streakResetAt.toDate?.() || new Date(d.streakResetAt);
+          const resetDate = d.streakResetAt.toDate?.() || new Date(d.streakResetAt);
           setStreakResetAt(resetDate);
         }
         if (typeof d?.streakRestoresUsed === "number")
           setStreakRestoresUsed(d.streakRestoresUsed);
         if (typeof d?.isStreakBroken === "boolean")
           setIsStreakBroken(d.isStreakBroken);
-          
         if (d?.lastSavingDate) {
             setLastSavingDate(d.lastSavingDate.toDate());
         }
@@ -337,6 +356,10 @@ const BudgetPage = () => {
   }, [user?.uid]);
 
   // --- Calculations ---
+  const totalMonthlyBudget = useMemo(() => {
+    return budgetLimits.reduce((acc, curr) => acc + curr.limit, 0);
+  }, [budgetLimits]);
+
   const budgetData = useMemo(() => {
     return budgetLimits.map(({ category, limit }) => {
       const used = monthlyTotals[category] || 0;
@@ -364,6 +387,17 @@ const BudgetPage = () => {
       selectedDate
     );
   }, [budgetData, historicalData, monthlyTotals, budgetLimits, selectedDate]);
+
+  const upcomingBills = useMemo(() => {
+    return specialBudgets
+        .filter(b => b.type === 'bill' && b.dueDate && b.spent < b.limit)
+        .map(b => {
+            const today = new Date();
+            const daysLeft = differenceInDays(b.dueDate, today);
+            return { ...b, daysLeft };
+        })
+        .sort((a, b) => a.daysLeft - b.daysLeft);
+  }, [specialBudgets]);
 
   // --- Handlers: Standard Budget ---
   const handleSaveBudget = async () => {
@@ -433,6 +467,21 @@ const BudgetPage = () => {
   };
 
   // --- Handlers: Special Budget ---
+  
+  // 1. Add Debtor to list during creation
+  const handleAddDebtorToCreationList = () => {
+    if (tempDebtorName.trim() === "") return;
+    setCreationDebtorsList([...creationDebtorsList, tempDebtorName.trim()]);
+    setTempDebtorName("");
+  };
+
+  const handleRemoveDebtorFromCreationList = (index: number) => {
+    const newList = [...creationDebtorsList];
+    newList.splice(index, 1);
+    setCreationDebtorsList(newList);
+  };
+
+  // 2. Save new Special Budget
   const handleSaveSpecialBudget = async () => {
     const uid = user?.uid;
     if (!uid) return;
@@ -446,12 +495,26 @@ const BudgetPage = () => {
       return;
     }
 
+    let billDueTimestamp = null;
+    if (specialType === 'bill' && billDateInput) {
+        const parsedDate = parse(billDateInput, 'yyyy-MM-dd', new Date());
+        if (isValid(parsedDate)) {
+            billDueTimestamp = parsedDate;
+        } else {
+            Alert.alert("Invalid Date", "Please use YYYY-MM-DD format.");
+            return;
+        }
+    }
+
     try {
       await addDoc(collection(firestore, "users", uid, "special_budgets"), {
         name: specialName.trim(),
         type: specialType,
         limit: limitNum,
         spent: 0,
+        debtors: creationDebtorsList, 
+        totalParticipants: creationDebtorsList.length > 0 ? creationDebtorsList.length : 1, 
+        dueDate: billDueTimestamp, 
         createdAt: serverTimestamp(),
       });
       resetModal();
@@ -460,6 +523,7 @@ const BudgetPage = () => {
     }
   };
 
+  // 3. Delete Special Budget
   const handleDeleteSpecial = async (id: string) => {
     const uid = user?.uid;
     if (!uid) return;
@@ -481,7 +545,72 @@ const BudgetPage = () => {
     ]);
   };
 
-  // --- NEW: Trigger Android-Friendly Modal ---
+  // 4. Handle "Mark as Paid" (Auto-calculate Split)
+  const handleMarkPersonPaid = async (budget: SpecialBudget, personName: string) => {
+    const uid = user?.uid;
+    if (!uid) return;
+
+    // Calculate Split
+    const totalPeople = budget.totalParticipants || 1;
+    const shareAmount = budget.limit / totalPeople;
+
+    Alert.alert(
+      "Confirm Payment",
+      `Has ${personName} paid their share of RM${shareAmount.toFixed(2)}?`,
+      [
+        { text: "No", style: "cancel" },
+        { 
+          text: "Yes, Paid", 
+          onPress: async () => {
+            try {
+              const newDebtors = (budget.debtors || []).filter(name => name !== personName);
+              // Automatically add their share to 'spent' (collected)
+              const newSpent = budget.spent + shareAmount;
+
+              await updateDoc(doc(firestore, "users", uid, "special_budgets", budget.id), {
+                debtors: newDebtors,
+                spent: newSpent 
+              });
+            } catch(e) {
+              Alert.alert("Error", "Failed to update.");
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // 5. Open "Add Person" modal for existing budget
+  const openAddPersonModal = (id: string, currentDebtors: string[], currentTotalParticipants: number) => {
+    setAddPersonTargetId(id);
+    setAddPersonCurrentList(currentDebtors || []);
+    setAddPersonTotalParticipants(currentTotalParticipants || 0);
+    setNewPersonName("");
+    setShowAddPersonModal(true);
+  };
+
+  // 6. Confirm adding person to existing budget
+  const handleConfirmAddPerson = async () => {
+    const uid = user?.uid;
+    if (!uid || !addPersonTargetId || !newPersonName.trim()) return;
+
+    try {
+      const updatedList = [...addPersonCurrentList, newPersonName.trim()];
+      const newTotalParticipants = addPersonTotalParticipants + 1;
+
+      await updateDoc(doc(firestore, "users", uid, "special_budgets", addPersonTargetId), {
+        debtors: updatedList,
+        totalParticipants: newTotalParticipants
+      });
+      setShowAddPersonModal(false);
+      setNewPersonName("");
+    } catch (e) {
+      Alert.alert("Error", "Failed to add person.");
+    }
+  };
+
+
+  // --- Handlers: Modal Submit (Special Budget - Amount) ---
   const openUpdateSpentModal = (
     id: string,
     currentSpent: number,
@@ -494,7 +623,6 @@ const BudgetPage = () => {
     setShowUpdateModal(true);
   };
 
-  // --- NEW: Handle Modal Submit ---
   const handleConfirmUpdateSpent = async () => {
     const uid = user?.uid;
     if (!uid || !updateTargetId) return;
@@ -548,6 +676,54 @@ const BudgetPage = () => {
     }
   };
 
+  const handleEditGoalInit = (goal: Goal) => {
+    setEditingGoalId(goal.id);
+    setEditGoalNameStr(goal.name);
+    setEditGoalTargetStr(goal.target.toString());
+    setShowGoalModal(true);
+  };
+
+  const handleSaveGoalUpdate = async () => {
+    const uid = user?.uid;
+    if (!uid || !editingGoalId) return;
+
+    const t = parseFloat(editGoalTargetStr);
+    if (!editGoalNameStr.trim() || isNaN(t) || t <= 0) {
+      Alert.alert("Invalid Input", "Please provide a valid name and target amount.");
+      return;
+    }
+
+    try {
+      await updateDoc(doc(firestore, "users", uid, "savings_goals", editingGoalId), {
+        name: editGoalNameStr.trim(),
+        target: t,
+      });
+      setShowGoalModal(false);
+      setEditingGoalId(null);
+    } catch (e) {
+      Alert.alert("Error", "Failed to update goal.");
+    }
+  };
+
+  const handleDeleteGoal = async (id: string) => {
+    const uid = user?.uid;
+    if (!uid) return;
+    Alert.alert("Delete Goal", "Are you sure you want to delete this savings goal?", [
+        { text: "Cancel", style: "cancel" },
+        {
+            text: "Delete",
+            style: "destructive",
+            onPress: async () => {
+                try {
+                    await deleteDoc(doc(firestore, "users", uid, "savings_goals", id));
+                } catch (e) {
+                    Alert.alert("Error", "Failed to delete goal.");
+                }
+            }
+        }
+    ]);
+  };
+
   const handleAddSaving = async () => {
     const uid = user?.uid;
     if (!uid || !recordGoalId) return;
@@ -558,46 +734,36 @@ const BudgetPage = () => {
     }
 
     try {
-      // 1. Add Record
       await addDoc(collection(firestore, "users", uid, "savings_records"), {
         goalId: recordGoalId,
         amount: amt,
         createdAt: serverTimestamp(),
       });
 
-      // 2. Handle Gamification Streak Logic (Client-side simulation for demo)
       const now = new Date();
       let newStreak = weeklyStreakFire;
       let broken = false;
 
-      // Determine streak logic based on last saving date
       if (!lastSavingDate) {
-        // First ever saving
         newStreak = 1;
         Alert.alert("Streak Started! 🔥", "That's day 1! Keep it up.");
       } else {
         if (isSameDay(now, lastSavingDate)) {
-             // Already saved today - do not increase streak, but acknowledge
              Alert.alert("Saved!", "You've already secured your streak for today! ✅");
-             // newStreak stays same
         } else if (isSameDay(lastSavingDate, subDays(now, 1))) {
-            // Saved yesterday, so this is a consecutive day
             newStreak = newStreak + 1;
              Alert.alert("Streak Increased! 🔥", `You are on a ${newStreak} day streak!`);
         } else {
-            // Missed more than 1 day - Streak Reset (or broken state)
-            // For this demo, let's reset to 1
              newStreak = 1;
              broken = true; 
              Alert.alert("Streak Reset", "You missed a day! Streak starts over at 1.");
         }
       }
 
-      // 3. Update Stats Summary
       await setDoc(
         doc(firestore, "users", uid, "stats", "summary"), 
         {
-           weeklyStreakFire: newStreak, // Using existing variable name for daily streak
+           weeklyStreakFire: newStreak, 
            lastSavingDate: serverTimestamp(),
            isStreakBroken: broken ? true : false,
         },
@@ -626,8 +792,6 @@ const BudgetPage = () => {
           text: "Restore",
           onPress: async () => {
             try {
-              // Restore logic: Just unbreak it, maybe give them back their old streak if you tracked it
-              // For simple demo, we just remove the 'broken' flag
               await setDoc(
                 doc(firestore, "users", uid, "stats", "summary"),
                 {
@@ -658,35 +822,47 @@ const BudgetPage = () => {
     setEditingCategory("");
     setSpecialName("");
     setSpecialTypeOpen(false);
+    // Reset Shared Expense State
+    setTempDebtorName("");
+    setCreationDebtorsList([]);
+    // Reset Bill State
+    setBillDateInput("");
   };
 
-  const getPriorityStyles = (priority: string) => {
-    if (priority === "critical")
+  const getRecommendationStyle = (type: string, priority: string) => {
+    if (type === "smart_savings" || type === "positive_reinforcement") {
+      return {
+        container: "border-emerald-300 bg-emerald-50",
+        badge: "bg-emerald-200",
+        badgeText: "text-emerald-700",
+        borderLeft: "border-l-4 border-l-emerald-500",
+        iconColor: "#059669"
+      };
+    }
+    if (type === "bill_alert" || type === "critical_alert" || priority === "critical") {
       return {
         container: "border-red-400 bg-red-50",
         badge: "bg-red-200",
         badgeText: "text-red-700",
         borderLeft: "border-l-4 border-l-red-500",
+        iconColor: "#dc2626"
       };
-    if (priority === "high")
+    }
+    if (priority === "high") {
       return {
         container: "border-orange-300 bg-orange-50",
         badge: "bg-orange-200",
         badgeText: "text-orange-700",
         borderLeft: "border-l-4 border-l-orange-500",
+        iconColor: "#ea580c"
       };
-    if (priority === "medium")
-      return {
-        container: "border-yellow-300 bg-yellow-50",
-        badge: "bg-yellow-200",
-        badgeText: "text-yellow-700",
-        borderLeft: "border-l-4 border-l-yellow-500",
-      };
+    }
     return {
-      container: "border-green-300 bg-green-50",
-      badge: "bg-green-200",
-      badgeText: "text-green-700",
-      borderLeft: "border-l-4 border-l-green-500",
+      container: "border-blue-300 bg-blue-50",
+      badge: "bg-blue-200",
+      badgeText: "text-blue-700",
+      borderLeft: "border-l-4 border-l-blue-500",
+      iconColor: "#2563eb"
     };
   };
 
@@ -720,8 +896,7 @@ const BudgetPage = () => {
     }
   };
 
-  // Streak Level Calculation
-  const streakLevel = Math.floor(weeklyStreakFire / 10) + 1; // Level up every 10 days
+  const streakLevel = Math.floor(weeklyStreakFire / 10) + 1; 
   const progressToNextLevel = (weeklyStreakFire % 10) / 10;
   const daysToNextLevel = 10 - (weeklyStreakFire % 10);
   const isSavedToday = lastSavingDate ? isSameDay(new Date(), lastSavingDate) : false;
@@ -792,18 +967,27 @@ const BudgetPage = () => {
       {activeTab === "budget" && (
         <>
           {/* Month Navigation */}
-          <View className="flex-row items-center justify-center mt-1 mb-6 gap-x-6">
-            <TouchableOpacity
-              onPress={() => setSelectedDate((d) => addMonths(d, -1))}
-            >
-              <AntDesign name="left-circle" size={24} color="#6b7280" />
-            </TouchableOpacity>
-            <Text className="text-lg font-semibold">{monthLabel}</Text>
-            <TouchableOpacity
-              onPress={() => setSelectedDate((d) => addMonths(d, 1))}
-            >
-              <AntDesign name="right-circle" size={24} color="#6b7280" />
-            </TouchableOpacity>
+          <View className="items-center mt-1 mb-6">
+            <View className="flex-row items-center justify-center gap-x-6">
+                <TouchableOpacity
+                onPress={() => setSelectedDate((d) => addMonths(d, -1))}
+                >
+                <AntDesign name="left-circle" size={24} color="#6b7280" />
+                </TouchableOpacity>
+                <Text className="text-lg font-semibold">{monthLabel}</Text>
+                <TouchableOpacity
+                onPress={() => setSelectedDate((d) => addMonths(d, 1))}
+                >
+                <AntDesign name="right-circle" size={24} color="#6b7280" />
+                </TouchableOpacity>
+            </View>
+            {/* Total Budget Display */}
+            <View className="bg-violet-50 mt-3 px-6 py-2 rounded-full border border-violet-100">
+                <Text className="text-violet-800 font-bold text-lg">
+                    RM {totalMonthlyBudget.toFixed(2)}
+                    <Text className="text-sm font-normal text-violet-600"> Total Budget</Text>
+                </Text>
+            </View>
           </View>
 
           {/* Budget Items */}
@@ -869,7 +1053,7 @@ const BudgetPage = () => {
             </View>
           )}
 
-          {/* AI-Powered Smart Recommendations */}
+          {/* AI Recommendations Section */}
           <View className="bg-gradient-to-br from-blue-50 to-indigo-50 mt-8 p-4 rounded-xl border-2 border-indigo-200">
             <View className="flex-row items-center justify-between mb-3">
               <View className="flex-1">
@@ -913,7 +1097,7 @@ const BudgetPage = () => {
               >
                 {getAIRecommendations.map((rec, idx) => {
                   const isExpanded = expandedRecs.has(`${rec.category}-${idx}`);
-                  const styles = getPriorityStyles(rec.priority);
+                  const styles = getRecommendationStyle(rec.type, rec.priority);
 
                   return (
                     <TouchableOpacity
@@ -932,6 +1116,11 @@ const BudgetPage = () => {
                       <View className="flex-row justify-between items-start">
                         <View className="flex-1">
                           <View className="flex-row items-center gap-2 mb-2">
+                            <MaterialCommunityIcons 
+                                name={rec.type === 'smart_savings' ? 'piggy-bank' : rec.type === 'positive_reinforcement' ? 'trophy' : 'alert-circle-outline'} 
+                                size={20} 
+                                color={styles.iconColor} 
+                            />
                             <Text className="font-bold text-sm text-gray-800 flex-1">
                               {rec.category}
                             </Text>
@@ -944,76 +1133,11 @@ const BudgetPage = () => {
                                 {rec.priority.toUpperCase()}
                               </Text>
                             </View>
-                            {/* NEW: Confidence Badge */}
-                            {rec.confidence !== undefined && (
-                              <View
-                                className={`px-2 py-1 rounded-full ${
-                                  rec.confidence >= 0.8
-                                    ? "bg-green-200"
-                                    : rec.confidence >= 0.6
-                                    ? "bg-yellow-200"
-                                    : "bg-orange-200"
-                                }`}
-                              >
-                                <Text
-                                  className={`text-xs font-bold ${
-                                    rec.confidence >= 0.8
-                                      ? "text-green-700"
-                                      : rec.confidence >= 0.6
-                                      ? "text-yellow-700"
-                                      : "text-orange-700"
-                                  }`}
-                                >
-                                  {Math.round((rec.confidence || 0) * 100)}%
-                                </Text>
-                              </View>
-                            )}
                           </View>
 
                           <Text className="text-sm text-gray-800 font-medium mb-2">
                             {rec.message}
                           </Text>
-
-                          {/* Quick metrics (Restored) */}
-                          {rec.daysRemaining !== undefined &&
-                            rec.dailyRate !== undefined && (
-                              <View className="flex-row gap-2 mb-2 bg-white/50 p-2 rounded-lg">
-                                <View className="flex-1">
-                                  <Text className="text-xs text-gray-600">
-                                    Daily Rate
-                                  </Text>
-                                  <Text className="text-sm font-bold text-gray-800">
-                                    RM{rec.dailyRate.toFixed(2)}/day
-                                  </Text>
-                                </View>
-                                <View className="flex-1">
-                                  <Text className="text-xs text-gray-600">
-                                    Days Left
-                                  </Text>
-                                  <Text className="text-sm font-bold text-gray-800">
-                                    {rec.daysRemaining} days
-                                  </Text>
-                                </View>
-                                <View className="flex-1">
-                                  <Text className="text-xs text-gray-600">
-                                    Projected
-                                  </Text>
-                                  <Text className="text-sm font-bold text-gray-800">
-                                    RM
-                                    {rec.projectedTotal?.toFixed(2) || "—"}
-                                  </Text>
-                                </View>
-                              </View>
-                            )}
-
-                          {/* NEW: Data Quality Indicator */}
-                          {rec.dataQuality && (
-                            <View className="bg-white/40 rounded-lg px-2 py-1 mb-2">
-                              <Text className="text-xs text-gray-600">
-                                Data Quality: <Text className="font-semibold">{rec.dataQuality}</Text>
-                              </Text>
-                            </View>
-                          )}
 
                           {isExpanded && (
                             <View className="mt-3 pt-3 border-t border-gray-300">
@@ -1022,46 +1146,37 @@ const BudgetPage = () => {
                                   💭 {rec.insight}
                                 </Text>
                               )}
+                               {rec.potentialSavings && (
+                                   <TouchableOpacity
+                                     className="bg-emerald-600 rounded-lg py-2 px-3 mt-2"
+                                     onPress={() => {
+                                        setActiveTab("savings");
+                                        setRecordAmount(rec.potentialSavings!.toString());
+                                        Alert.alert("Good Idea!", `Let's move that RM${rec.potentialSavings} to your savings goals.`);
+                                     }}
+                                   >
+                                     <Text className="text-white text-xs font-bold text-center">
+                                       💰 Move RM{rec.potentialSavings} to Savings
+                                     </Text>
+                                   </TouchableOpacity>
+                               )}
 
-                              {/* Recommended Actions (Restored) */}
-                              {rec.actionItems &&
-                                rec.actionItems.length > 0 && (
-                                  <View className="bg-white/60 rounded-lg p-2 mb-3">
-                                    <Text className="text-xs font-bold text-gray-700 mb-2">
-                                      📋 Recommended Actions:
-                                    </Text>
-                                    {rec.actionItems.map(
-                                      (action, actionIdx) => (
-                                        <Text
-                                          key={actionIdx}
-                                          className="text-xs text-gray-700 mb-1"
-                                        >
-                                          • {action}
-                                        </Text>
-                                      )
-                                    )}
-                                  </View>
-                                )}
-
-                              {rec.suggestedLimit !== null &&
-                                rec.suggestedLimit !== undefined && (
-                                  <TouchableOpacity
-                                    className="bg-indigo-600 rounded-lg py-2 px-3"
-                                    onPress={() => {
-                                      setNewLimit(
-                                        rec.suggestedLimit!.toString()
-                                      );
-                                      setEditingCategory(rec.category);
-                                      setEditMode(true);
-                                      setShowModal(true);
-                                    }}
-                                  >
-                                    <Text className="text-white text-xs font-bold text-center">
-                                      💡 Apply Suggested Budget: RM
-                                      {rec.suggestedLimit.toFixed(2)}
-                                    </Text>
-                                  </TouchableOpacity>
-                                )}
+                               {rec.suggestedLimit !== undefined && !rec.potentialSavings && (
+                                   <TouchableOpacity
+                                     className="bg-indigo-600 rounded-lg py-2 px-3 mt-2"
+                                     onPress={() => {
+                                        setNewLimit(rec.suggestedLimit!.toString());
+                                        setEditingCategory(rec.category);
+                                        setNewCategory(rec.category);
+                                        setEditMode(rec.type !== "unbudgeted");
+                                        setShowModal(true);
+                                     }}
+                                   >
+                                     <Text className="text-white text-xs font-bold text-center">
+                                        {rec.type === "unbudgeted" ? "➕ Create Budget" : "🔧 Adjust Budget Limit"}
+                                     </Text>
+                                   </TouchableOpacity>
+                               )}
                             </View>
                           )}
                         </View>
@@ -1086,26 +1201,6 @@ const BudgetPage = () => {
                 </Text>
               </View>
             )}
-          </View>
-
-          <View className="bg-gray-50 rounded-lg p-3 border border-gray-200 mt-4 mb-3">
-            <Text className="text-gray-600 text-xs font-semibold mb-1">
-              📊 Recommendation Accuracy
-            </Text>
-            <View className="flex-row justify-between">
-              <Text className="text-gray-500 text-xs">
-                {monthContext.currentDayOfMonth} of {monthContext.totalDaysInMonth} days elapsed
-              </Text>
-              <Text className="text-gray-500 text-xs">
-                {monthContext.currentDayOfMonth >= 15
-                  ? "✅ Excellent Data"
-                  : monthContext.currentDayOfMonth >= 10
-                  ? "✅ Good Data"
-                  : monthContext.currentDayOfMonth >= 5
-                  ? "⚠️ Fair Data"
-                  : "❌ Early in Month"}
-              </Text>
-            </View>
           </View>
 
           {/* Add Budget Button */}
@@ -1202,9 +1297,19 @@ const BudgetPage = () => {
                 const saved = goalTotals[g.id] || 0;
                 return (
                   <View key={g.id} className="mb-4">
-                    <Text className="font-semibold text-dark-100">
-                      {g.name} - RM{saved.toFixed(0)} / RM{g.target.toFixed(0)}
-                    </Text>
+                    <View className="flex-row justify-between items-center">
+                        <Text className="font-semibold text-dark-100 flex-1">
+                          {g.name} - RM{saved.toFixed(0)} / RM{g.target.toFixed(0)}
+                        </Text>
+                        <View className="flex-row items-center gap-3">
+                           <TouchableOpacity onPress={() => handleEditGoalInit(g)}>
+                               <Feather name="edit" size={16} color="#4b5563" />
+                           </TouchableOpacity>
+                           <TouchableOpacity onPress={() => handleDeleteGoal(g.id)}>
+                               <Feather name="trash-2" size={16} color="#dc2626" />
+                           </TouchableOpacity>
+                        </View>
+                    </View>
                     <ProgressBar
                       progress={g.target > 0 ? saved / g.target : 0}
                       color={"#22c55e"}
@@ -1216,7 +1321,7 @@ const BudgetPage = () => {
             )}
           </View>
 
-          {/* IMPROVED STREAK SECTION */}
+          {/* STREAK SECTION */}
           <View className="bg-orange-50 rounded-2xl p-5 border border-orange-200 mb-10 shadow-sm">
              <View className="flex-row justify-between items-start mb-4">
                 <View>
@@ -1306,15 +1411,48 @@ const BudgetPage = () => {
             </Text>
           </View>
 
+          {/* Bill Alerts Summary */}
+          {upcomingBills.length > 0 && (
+            <View className="bg-red-50 rounded-xl p-3 mb-4 border border-red-200 flex-row items-center gap-3">
+               <MaterialCommunityIcons name="bell-ring" size={24} color="#dc2626" />
+               <View className="flex-1">
+                  <Text className="text-red-800 font-bold">🔔 Bill Alerts</Text>
+                  <Text className="text-red-700 text-xs">
+                    You have {upcomingBills.length} bill(s) due soon or overdue! Check below.
+                  </Text>
+               </View>
+            </View>
+          )}
+
           {specialBudgets.map((sb) => {
             const iconName = getSpecialIcon(sb.type);
             const color = getSpecialColor(sb.type);
             const percent = sb.limit > 0 ? (sb.spent / sb.limit) * 100 : 0;
 
+            // Bill specific logic
+            const isBill = sb.type === 'bill';
+            let dueDateText = "";
+            let isOverdue = false;
+            let isDueSoon = false;
+
+            if(isBill && sb.dueDate) {
+                const today = new Date();
+                const due = new Date(sb.dueDate);
+                dueDateText = format(due, "dd MMM yyyy");
+                
+                // If not fully paid
+                if (sb.spent < sb.limit) {
+                    if (differenceInDays(due, today) < 0) isOverdue = true;
+                    else if (differenceInDays(due, today) <= 3) isDueSoon = true;
+                }
+            }
+
             return (
               <View
                 key={sb.id}
-                className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm mb-4"
+                className={`bg-white rounded-2xl p-4 border shadow-sm mb-4 ${
+                    isOverdue ? "border-red-400 bg-red-50" : isDueSoon ? "border-orange-400 bg-orange-50" : "border-gray-100"
+                }`}
               >
                 <View className="flex-row items-center justify-between mb-2">
                   <View className="flex-row items-center gap-2">
@@ -1342,39 +1480,91 @@ const BudgetPage = () => {
                   </TouchableOpacity>
                 </View>
 
+                {/* Bill Warning UI */}
+                {isBill && sb.dueDate && (
+                    <View className="flex-row items-center mb-2">
+                        <Text className={`text-xs font-bold ${isOverdue ? "text-red-600" : isDueSoon ? "text-orange-600" : "text-gray-500"}`}>
+                            Due Date: {dueDateText}
+                        </Text>
+                        {isOverdue && <Text className="ml-2 text-xs font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded">OVERDUE</Text>}
+                        {isDueSoon && <Text className="ml-2 text-xs font-bold text-orange-600 bg-orange-100 px-2 py-0.5 rounded">DUE SOON</Text>}
+                    </View>
+                )}
+
+                {/* Shared Expense Specific UI */}
+                {sb.type === 'shared' && (
+                    <View className="my-3 bg-purple-50 p-3 rounded-lg border border-purple-100">
+                        <View className="flex-row justify-between items-center mb-2">
+                            <Text className="text-purple-800 text-xs font-bold uppercase">
+                                Waiting for Payment
+                            </Text>
+                            <TouchableOpacity onPress={() => openAddPersonModal(sb.id, sb.debtors || [], sb.totalParticipants || 1)}>
+                                <Text className="text-purple-600 text-xs font-bold">+ Add Person</Text>
+                            </TouchableOpacity>
+                        </View>
+                        
+                        {(sb.debtors && sb.debtors.length > 0) ? (
+                            <View className="flex-col gap-2">
+                                <Text className="text-purple-600 text-xs mb-1">
+                                    Each person owes: <Text className="font-bold">RM{(sb.limit / (sb.totalParticipants || 1)).toFixed(2)}</Text>
+                                </Text>
+                                <View className="flex-row flex-wrap gap-2">
+                                    {sb.debtors.map((person, idx) => (
+                                        <TouchableOpacity 
+                                            key={idx}
+                                            onPress={() => handleMarkPersonPaid(sb, person)}
+                                            className="bg-white border border-purple-200 px-3 py-1.5 rounded-full flex-row items-center shadow-sm"
+                                        >
+                                            <Text className="text-purple-700 text-xs font-bold mr-1">{person}</Text>
+                                            <View className="bg-purple-100 rounded-full p-1 ml-1">
+                                                 <FontAwesome5 name="check" size={8} color="#7c3aed" />
+                                            </View>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+                        ) : (
+                            <Text className="text-gray-400 text-xs italic">Everyone has paid! (or list is empty)</Text>
+                        )}
+                    </View>
+                )}
+
                 <View className="flex-row justify-between items-end mb-2">
                   <Text className="text-2xl font-bold text-gray-800">
                     RM{sb.spent.toFixed(2)}
                   </Text>
                   <Text className="text-gray-500 mb-1">
-                    of RM{sb.limit.toFixed(2)}
+                    {sb.type === 'shared' ? 'collected of' : isBill ? 'paid of' : 'spent of'} RM{sb.limit.toFixed(2)}
                   </Text>
                 </View>
 
                 <ProgressBar
                   progress={Math.min(percent / 100, 1)}
-                  color={color}
+                  color={isOverdue ? "#dc2626" : color}
                   style={{ height: 8, borderRadius: 5 }}
                 />
 
-                <View className="flex-row mt-4 gap-3">
-                  <TouchableOpacity
-                    onPress={() => openUpdateSpentModal(sb.id, sb.spent, true)}
-                    className="flex-1 bg-gray-50 border border-gray-200 py-2 rounded-lg items-center"
-                  >
-                    <Text className="text-gray-700 font-semibold text-xs">
-                      + Add Expense
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => openUpdateSpentModal(sb.id, sb.spent, false)}
-                    className="flex-1 bg-gray-50 border border-gray-200 py-2 rounded-lg items-center"
-                  >
-                    <Text className="text-gray-700 font-semibold text-xs">
-                      ✎ Edit Total
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+                {/* Hide buttons if Shared Expense to avoid conflict with "Mark Paid" logic */}
+                {sb.type !== 'shared' && (
+                    <View className="flex-row mt-4 gap-3">
+                    <TouchableOpacity
+                        onPress={() => openUpdateSpentModal(sb.id, sb.spent, true)}
+                        className="flex-1 bg-gray-50 border border-gray-200 py-2 rounded-lg items-center"
+                    >
+                        <Text className="text-gray-700 font-semibold text-xs">
+                        + {sb.type === 'bill' ? 'Pay Bill' : 'Add Expense'}
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={() => openUpdateSpentModal(sb.id, sb.spent, false)}
+                        className="flex-1 bg-gray-50 border border-gray-200 py-2 rounded-lg items-center"
+                    >
+                        <Text className="text-gray-700 font-semibold text-xs">
+                        ✎ Edit Total
+                        </Text>
+                    </TouchableOpacity>
+                    </View>
+                )}
               </View>
             );
           })}
@@ -1431,7 +1621,7 @@ const BudgetPage = () => {
                 <TextInput
                   value={specialName}
                   onChangeText={setSpecialName}
-                  placeholder="e.g. Bali Trip 2026"
+                  placeholder={specialType === 'bill' ? "e.g. TNB Bill" : "e.g. Bali Trip 2026"}
                   className="border border-gray-300 rounded-md px-3 py-2 mb-3"
                 />
                 <Text className="mb-1 font-medium">Type</Text>
@@ -1447,8 +1637,53 @@ const BudgetPage = () => {
                   style={{ borderColor: "#ccc", marginBottom: 12 }}
                   dropDownContainerStyle={{ zIndex: 2000 }}
                 />
+
+                {/* Bill Date Picker */}
+                {specialType === 'bill' && (
+                    <View className="mb-4">
+                        <Text className="mb-1 font-medium text-orange-700">Due Date (YYYY-MM-DD)</Text>
+                        <TextInput
+                            value={billDateInput}
+                            onChangeText={setBillDateInput}
+                            placeholder="2026-12-31"
+                            keyboardType="numbers-and-punctuation"
+                            className="border border-orange-300 bg-orange-50 rounded-md px-3 py-2"
+                        />
+                    </View>
+                )}
+
+                {/* Shared Expense Specific: Add People Immediately */}
+                {specialType === 'shared' && (
+                    <View className="mb-4 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                        <Text className="font-semibold text-gray-700 mb-2 text-xs uppercase">Shared With (List Names)</Text>
+                        <View className="flex-row gap-2 mb-2">
+                             <TextInput 
+                                value={tempDebtorName}
+                                onChangeText={setTempDebtorName}
+                                placeholder="Person Name"
+                                className="flex-1 bg-white border border-gray-300 rounded px-2 py-1 text-sm"
+                             />
+                             <TouchableOpacity onPress={handleAddDebtorToCreationList} className="bg-purple-500 px-3 py-1 rounded justify-center">
+                                 <Text className="text-white font-bold text-xs">Add</Text>
+                             </TouchableOpacity>
+                        </View>
+                        {creationDebtorsList.length > 0 && (
+                            <View className="flex-row flex-wrap gap-2 mt-1">
+                                {creationDebtorsList.map((name, idx) => (
+                                    <View key={idx} className="bg-purple-100 px-2 py-1 rounded-md flex-row items-center">
+                                        <Text className="text-purple-800 text-xs mr-1">{name}</Text>
+                                        <TouchableOpacity onPress={() => handleRemoveDebtorFromCreationList(idx)}>
+                                            <Ionicons name="close" size={12} color="#6b21a8" />
+                                        </TouchableOpacity>
+                                    </View>
+                                ))}
+                            </View>
+                        )}
+                    </View>
+                )}
+
                 <Text className="mb-1 font-medium z-[-1]">
-                  Total Budget Limit
+                  Total Amount / Limit
                 </Text>
                 <TextInput
                   value={newLimit}
@@ -1462,7 +1697,7 @@ const BudgetPage = () => {
                   onPress={handleSaveSpecialBudget}
                 >
                   <Text className="text-white font-bold text-center">
-                    Create Project
+                    Create {specialType === 'bill' ? "Bill" : "Project"}
                   </Text>
                 </TouchableOpacity>
               </>
@@ -1507,12 +1742,12 @@ const BudgetPage = () => {
         </View>
       </Modal>
 
-      {/* ==================== ANDROID-COMPATIBLE UPDATE MODAL ==================== */}
+      {/* ==================== ANDROID-COMPATIBLE UPDATE MODAL (Special - Amount) ==================== */}
       <Modal visible={showUpdateModal} animationType="fade" transparent>
         <View className="flex-1 justify-center items-center bg-black/60 px-5">
           <View className="bg-white w-full p-6 rounded-xl shadow-lg">
             <Text className="text-xl font-bold text-gray-800 mb-2">
-              {isAddingToSpent ? "Add Expense" : "Update Total Spent"}
+              {isAddingToSpent ? "Add Expense / Payment" : "Update Total Spent"}
             </Text>
             <Text className="text-gray-500 mb-4 text-sm">
               {isAddingToSpent
@@ -1544,6 +1779,94 @@ const BudgetPage = () => {
               >
                 <Text className="text-white font-bold text-center">
                   Confirm
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      
+      {/* ==================== ADD PERSON MODAL (Shared Expense) ==================== */}
+      <Modal visible={showAddPersonModal} animationType="fade" transparent>
+        <View className="flex-1 justify-center items-center bg-black/60 px-5">
+          <View className="bg-white w-full p-6 rounded-xl shadow-lg">
+            <Text className="text-xl font-bold text-gray-800 mb-2">
+              Add Person to Shared Expense
+            </Text>
+            <Text className="text-gray-500 mb-4 text-sm">
+              Who else shares this expense?
+            </Text>
+
+            <TextInput
+              value={newPersonName}
+              onChangeText={setNewPersonName}
+              placeholder="Name (e.g. Sarah)"
+              autoFocus={true}
+              className="border border-gray-300 rounded-lg px-4 py-3 text-lg mb-6 bg-gray-50"
+            />
+
+            <View className="flex-row gap-3">
+              <TouchableOpacity
+                onPress={() => setShowAddPersonModal(false)}
+                className="flex-1 bg-gray-200 py-3 rounded-lg"
+              >
+                <Text className="text-gray-700 font-bold text-center">
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleConfirmAddPerson}
+                className="flex-1 bg-purple-600 py-3 rounded-lg"
+              >
+                <Text className="text-white font-bold text-center">
+                  Add Person
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ==================== GOAL EDIT MODAL ==================== */}
+      <Modal visible={showGoalModal} animationType="fade" transparent>
+        <View className="flex-1 justify-center items-center bg-black/60 px-5">
+          <View className="bg-white w-full p-6 rounded-xl shadow-lg">
+            <Text className="text-xl font-bold text-gray-800 mb-4">
+              Edit Goal
+            </Text>
+            
+            <Text className="mb-1 font-medium text-gray-700">Goal Name</Text>
+            <TextInput
+              value={editGoalNameStr}
+              onChangeText={setEditGoalNameStr}
+              placeholder="Goal Name"
+              className="border border-gray-300 rounded-lg px-3 py-2 mb-3"
+            />
+
+            <Text className="mb-1 font-medium text-gray-700">Target Amount</Text>
+            <TextInput
+              value={editGoalTargetStr}
+              onChangeText={setEditGoalTargetStr}
+              keyboardType="numeric"
+              placeholder="0.00"
+              className="border border-gray-300 rounded-lg px-3 py-2 mb-6"
+            />
+
+            <View className="flex-row gap-3">
+              <TouchableOpacity
+                onPress={() => setShowGoalModal(false)}
+                className="flex-1 bg-gray-200 py-3 rounded-lg"
+              >
+                <Text className="text-gray-700 font-bold text-center">
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSaveGoalUpdate}
+                className="flex-1 bg-pink-500 py-3 rounded-lg"
+              >
+                <Text className="text-white font-bold text-center">
+                  Save Changes
                 </Text>
               </TouchableOpacity>
             </View>
