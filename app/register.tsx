@@ -23,7 +23,6 @@ const Register = () => {
 
   const { register: registerUser, signInWithGoogle } = useAuth();
 
-  // Helper to translate technical errors to human language
   const getFriendlyErrorMessage = (errorMsg: string) => {
     if (errorMsg.includes("email-already-in-use")) {
       return "This email is already registered. Try logging in instead.";
@@ -92,10 +91,12 @@ const Register = () => {
         text2: getFriendlyErrorMessage(res.msg),
       });
     } else {
+      // NEW: success handling for verification
       Toast.show({
         type: "success",
-        text1: "Welcome to MoneyMap!",
-        text2: "Account created successfully. Please log in.",
+        text1: "Verification Sent!",
+        text2: "Please check your email to verify your account before logging in.",
+        visibilityTime: 6000, // Show longer so they can read it
       });
       router.replace("/login");
     }
@@ -113,7 +114,7 @@ const Register = () => {
         text2: "We couldn't connect to Google. Please try again.",
       });
     } else {
-      router.replace("/tabs/home");
+      router.replace("/login");
     }
   };
 
@@ -126,11 +127,11 @@ const Register = () => {
         Start tracking your expenses
       </Text>
 
-      {/* Full Name */}
-      <Text className="font-bold text-dark-100 mb-2">Full Name</Text>
+      {/* UserName */}
+      <Text className="font-bold text-dark-100 mb-2">UserName</Text>
       <TextInput
         onChangeText={(text) => (nameRef.current = text)}
-        placeholder="Enter your full name"
+        placeholder="Enter your username"
         editable={!isLoading}
         className="bg-white p-4 rounded-lg shadow-lg mb-4 text-dark-100"
       />

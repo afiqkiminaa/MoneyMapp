@@ -20,6 +20,11 @@ const Login = () => {
   const { login: loginUser, signInWithGoogle } = useAuth();
 
   const getFriendlyLoginMessage = (errorMsg: string) => {
+    // NEW: Check for verification error
+    if (errorMsg.includes("email-not-verified")) {
+      return "Please verify your email address before logging in. Check your inbox.";
+    }
+
     if (errorMsg.includes("user-not-found") || errorMsg.includes("wrong-password") || errorMsg.includes("invalid-credential")) {
       return "Incorrect email or password. Please try again.";
     }
@@ -49,7 +54,8 @@ const Login = () => {
     if (!res.success) {
       Toast.show({
         type: "error",
-        text1: "Access Denied",
+        // NEW: Custom title for verification error
+        text1: res.msg === "email-not-verified" ? "Verification Required" : "Access Denied",
         text2: getFriendlyLoginMessage(res.msg),
       });
     } else {
