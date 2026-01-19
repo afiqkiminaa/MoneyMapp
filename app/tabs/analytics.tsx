@@ -116,7 +116,7 @@ const Analytics = () => {
       });
 
       // ---------------------------------------------------------
-      // ML ENGINE IMPLEMENTATION START
+      // ML ENGINE IMPLEMENTATION
       // ---------------------------------------------------------
       let nextPrediction = 0;
       let currentPrediction = 0;
@@ -146,11 +146,11 @@ const Analytics = () => {
         );
 
         // E. Predict Next Month (Trend Chaining)
-        // We feed the "currentPrediction" back into the engine to forecast future
+        // feed the "currentPrediction" back into the engine to forecast future
         nextPrediction = forecaster.predictNextMonth(currentPrediction);
       }
       // ---------------------------------------------------------
-      // ML ENGINE IMPLEMENTATION END
+      // ML ENGINE IMPLEMENTATION
       // ---------------------------------------------------------
 
       setNextMonthPrediction(nextPrediction);

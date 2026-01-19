@@ -91,7 +91,7 @@ const Register = () => {
         text2: getFriendlyErrorMessage(res.msg),
       });
     } else {
-      // NEW: success handling for verification
+      // success handling for verification
       Toast.show({
         type: "success",
         text1: "Verification Sent!",

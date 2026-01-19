@@ -155,7 +155,7 @@ const AddExpense = () => {
             text2: `Set to RM ${data.amount} (${extractedCat})` 
           });
         } else {
-           // --- ❓ UNCERTAIN TOAST ---
+           // --- UNCERTAIN TOAST ---
            Toast.show({ 
             type: "error", 
             text1: "Could not understand ❓", 
@@ -168,7 +168,7 @@ const AddExpense = () => {
 
     } catch (error) {
       console.error("Voice Error:", error);
-      // --- ❌ ERROR TOAST ---
+      // ---  ERROR TOAST ---
       Toast.show({ 
         type: "error", 
         text1: "Connection Failed ❌", 

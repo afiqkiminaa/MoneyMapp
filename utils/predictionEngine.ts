@@ -1,10 +1,3 @@
-/**
- * MONEYMAP PREDICTION ENGINE
- * * A deterministic statistical machine learning module for client-side
- * expense forecasting. Uses Ordinary Least Squares (OLS) regression
- * combined with an ensemble time-decay model.
- */
-
 interface DataPoint {
   x: number; // Time index (e.g., Month 1, 2, 3)
   y: number; // Value (Amount Spent)

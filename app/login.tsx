@@ -20,7 +20,7 @@ const Login = () => {
   const { login: loginUser, signInWithGoogle } = useAuth();
 
   const getFriendlyLoginMessage = (errorMsg: string) => {
-    // NEW: Check for verification error
+    // Check for verification error
     if (errorMsg.includes("email-not-verified")) {
       return "Please verify your email address before logging in. Check your inbox.";
     }
@@ -54,7 +54,7 @@ const Login = () => {
     if (!res.success) {
       Toast.show({
         type: "error",
-        // NEW: Custom title for verification error
+        // Custom title for verification error
         text1: res.msg === "email-not-verified" ? "Verification Required" : "Access Denied",
         text2: getFriendlyLoginMessage(res.msg),
       });

@@ -34,7 +34,7 @@ const Profile = () => {
     fetchUserData();
   }, [user]);
 
-  // FIX: Explicitly navigate to landing page after logout
+  // Explicitly navigate to landing page after logout
   const handleLogout = async () => {
     try {
       await signOut(auth);

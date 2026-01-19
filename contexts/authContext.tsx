@@ -15,8 +15,6 @@ import { doc, setDoc } from "firebase/firestore";
 import { Alert, AppState, AppStateStatus } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage"; 
 
-// --- CONFIGURATION ---
-
 // DUMMY EMAILS HERE TO SKIP VERIFICATION
 const BYPASS_VERIFICATION_EMAILS = [
   "afiq@gmail.com"
@@ -96,7 +94,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         // If NOT verified AND NOT on the bypass list, ignore this session
         if (!currentUser.emailVerified && !isBypassed) {
-           // Do nothing, wait for them to verify or log in manually
+           // wait for them to verify or log in manually
            setUser(null);
         } else {
             // User is verified OR is a dummy account -> check session timeout
@@ -175,7 +173,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // --- LOGIC UPDATE: BYPASS CHECK ---
+      // --- BYPASS CHECK ---
       const isBypassed = user.email && BYPASS_VERIFICATION_EMAILS.includes(user.email);
       
       if (!user.emailVerified && !isBypassed) {

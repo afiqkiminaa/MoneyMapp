@@ -40,7 +40,7 @@ const Home = () => {
     return "Good Evening";
   };
 
-  // FIX: Fetch User Name from Firestore
+  // Fetch User Name from Firestore
   useFocusEffect(
     useCallback(() => {
       const fetchUserName = async () => {

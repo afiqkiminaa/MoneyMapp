@@ -19,8 +19,8 @@ interface AIRecommendation {
     | "budget_exceeded"
     | "trajectory_warning"
     | "bill_alert"
-    | "smart_savings"         // NEW: Suggests moving surplus to savings
-    | "positive_reinforcement" // NEW: Praise for good habits
+    | "smart_savings"         // Suggests moving surplus to savings
+    | "positive_reinforcement" // Praise for good habits
     | "pace_monitor"
     | "safe_zone"
     | "optimization"
@@ -30,7 +30,7 @@ interface AIRecommendation {
   message: string;
   priority: "critical" | "high" | "medium" | "low";
   suggestedLimit?: number; // Used for budget resizing
-  potentialSavings?: number; // NEW: Specific amount available to save
+  potentialSavings?: number; // Specific amount available to save
   insight?: string;
   actionItems?: string[];
   daysInMonth?: number;
@@ -154,7 +154,7 @@ export const generateAIRecommendations = (
         recommendations.push({
             category: b.category, type: "critical_alert", priority: "critical",
             message: `🚨 ${b.category} limit exceeded by RM${overspentAmount.toFixed(2)}.`,
-            insight: "Fixed bill exceeded budget. Update your limit next month.",
+            insight: "Fixed bill exceeded budget. Update your limit or consider to cut other budget to cover this.",
             actionItems: ["Adjust budget limit"], confidence: 1.0
         });
       } else {
